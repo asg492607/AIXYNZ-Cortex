@@ -7,12 +7,21 @@ import {
   Play,
   Activity,
   RefreshCcw,
+  ExternalLink,
+  LinkIcon,
 } from 'lucide-react';
 
 import { API_BASE, ORG_ID } from '../lib/config';
 
+const SEVERITY_BADGE = {
+  Critical: 'bg-red-900/60 text-red-200 border border-red-700/50',
+  High: 'bg-orange-900/60 text-orange-200 border border-orange-700/50',
+  Medium: 'bg-yellow-900/60 text-yellow-200 border border-yellow-700/50',
+  Low: 'bg-gray-700 text-gray-300 border border-gray-600',
+};
+
 export default function Findings() {
-  const [data, setData] = useState({ mode: 'live', org_id: ORG_ID, findings: [] });
+  const [data, setData] = useState({ mode: 'demo', org_id: ORG_ID, findings: [], findings_count: 0 });
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState(null);
 
@@ -25,6 +34,8 @@ export default function Findings() {
   const [ticket, setTicket] = useState(null);
 
   const [rescanning, setRescanning] = useState(false);
+
+  // ── Data loaders ──────────────────────────────────────────────────────────
 
   const loadFindings = async () => {
     try {
@@ -45,18 +56,20 @@ export default function Findings() {
     loadFindings();
   }, []);
 
+  // ── Actions ───────────────────────────────────────────────────────────────
+
   const handleRescan = async () => {
     try {
       setRescanning(true);
-      await axios.post(`${API_BASE}/findings/rescan`, null, {
-        params: { org_id: ORG_ID },
-      });
+      await axios.post(`${API_BASE}/scan/rescan`, { org_id: ORG_ID });
       await loadFindings();
 
-      // if selected finding still exists after rescan, refresh selected reference
+      // preserve selection if finding still exists
       if (selected?.id) {
-        const refreshed = (data.findings || []).find((f) => f.id === selected.id);
-        if (refreshed) setSelected(refreshed);
+        setSelected((prev) => {
+          const refreshed = (data.findings || []).find((f) => f.id === prev?.id);
+          return refreshed ?? null;
+        });
       }
     } catch (err) {
       console.error(err);
@@ -68,7 +81,6 @@ export default function Findings() {
 
   const handleSelect = async (finding) => {
     const selectedId = finding.id;
-
     setSelected(finding);
     setAnalysis(null);
     setAnalysisError(null);
@@ -82,12 +94,14 @@ export default function Findings() {
       });
 
       // stale-response guard
-      if (selectedId !== finding.id) return;
-
-      setAnalysis(res.data.analysis);
+      setSelected((prev) => {
+        if (prev?.id !== selectedId) return prev;
+        setAnalysis(res.data.analysis);
+        return prev;
+      });
     } catch (err) {
       console.error(err);
-      setAnalysisError('Failed to analyze finding.');
+      setAnalysisError('AI analysis failed. Check backend connectivity.');
     } finally {
       setAnalyzing(false);
     }
@@ -95,7 +109,6 @@ export default function Findings() {
 
   const handleRemediate = async () => {
     if (!selected?.id) return;
-
     setRemediating(true);
     try {
       const res = await axios.post(`${API_BASE}/findings/remediate`, {
@@ -103,7 +116,12 @@ export default function Findings() {
         org_id: ORG_ID,
       });
 
-      setTicket(res.data.ticket || null);
+      setTicket({
+        status: res.data.status,
+        ticket_id: res.data.ticket_id,
+        ticket_url: res.data.ticket_url,
+      });
+
       if (res.data.analysis) {
         setAnalysis(res.data.analysis);
       }
@@ -115,6 +133,18 @@ export default function Findings() {
     }
   };
 
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  const isDemo = data.mode === 'demo';
+  const alreadyLinked = selected?.jira_issue_key;
+  // ticket was just created this session OR finding already has a linked key
+  const ticketResolved = ticket || alreadyLinked;
+  const ticketId = ticket?.ticket_id || alreadyLinked;
+  const ticketUrl = ticket?.ticket_url;
+  const isAlreadyExists = ticket?.status === 'already_exists';
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -123,22 +153,21 @@ export default function Findings() {
     );
   }
 
-  const isDemo = data.mode === 'demo';
-
   return (
     <div className="flex h-full flex-col">
+      {/* Top bar */}
       <div className="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-950 gap-3 flex-wrap">
         <div>
           <h1 className="text-xl font-bold text-white">Risk Queue</h1>
-          <p className="text-sm text-gray-400 mt-1">
-            Review findings, run AI analysis, and create Jira remediation tickets.
+          <p className="text-sm text-gray-400 mt-0.5">
+            {data.findings_count ?? data.findings?.length ?? 0} findings — Review, analyse, and remediate.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           <div
             className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${
-              isDemo ? 'bg-yellow-500/20 text-yellow-500' : 'bg-green-500/20 text-green-500'
+              isDemo ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/40' : 'bg-green-500/20 text-green-400 border border-green-500/40'
             }`}
           >
             <Activity className="w-3 h-3" />
@@ -148,90 +177,116 @@ export default function Findings() {
           <button
             onClick={handleRescan}
             disabled={rescanning}
-            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold flex items-center gap-2"
+            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold flex items-center gap-2 transition"
           >
-            {rescanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCcw className="w-4 h-4" />}
-            Rescan
+            {rescanning ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Rescanning…
+              </>
+            ) : (
+              <>
+                <RefreshCcw className="w-4 h-4" />
+                Rescan
+              </>
+            )}
           </button>
         </div>
       </div>
 
       {listError && (
-        <div className="mx-6 mt-4 bg-red-500/10 border border-red-500/30 text-red-300 px-4 py-3 rounded-lg">
+        <div className="mx-6 mt-4 bg-red-500/10 border border-red-500/30 text-red-300 px-4 py-3 rounded-lg text-sm">
           {listError}
         </div>
       )}
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Findings list */}
-        <div className={`w-full ${selected ? 'md:w-1/2 hidden md:block' : ''} p-6 overflow-y-auto border-r border-gray-800`}>
+        {/* ── Findings list ─────────────────────────────────────────────── */}
+        <div className={`${selected ? 'hidden md:flex md:w-1/2' : 'w-full'} flex-col p-6 overflow-y-auto border-r border-gray-800`}>
           <div className="space-y-3">
             {data.findings.length === 0 ? (
               <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 text-gray-400">
                 No findings yet. Run a rescan to populate Cortex.
               </div>
             ) : (
-              data.findings.map((f) => (
-                <div
-                  key={f.id}
-                  onClick={() => handleSelect(f)}
-                  className={`p-4 rounded-lg border cursor-pointer transition ${
-                    selected?.id === f.id
-                      ? 'bg-blue-900/20 border-blue-500'
-                      : 'bg-gray-800 border-gray-700 hover:border-gray-500'
-                  }`}
-                >
-                  <div className="flex justify-between items-start gap-4">
-                    <div>
-                      <span
-                        className={`text-xs font-bold px-2 py-1 rounded ${
-                          f.severity === 'Critical'
-                            ? 'bg-red-900 text-red-200'
-                            : f.severity === 'High'
-                            ? 'bg-orange-900 text-orange-200'
-                            : 'bg-yellow-900 text-yellow-200'
-                        }`}
-                      >
-                        {f.severity}
-                      </span>
+              data.findings.map((f) => {
+                const assetLabel =
+                  f.asset?.asset_name ||
+                  f.asset?.external_asset_id ||
+                  'unknown asset';
 
-                      <h3 className="mt-2 font-semibold text-white">{f.title}</h3>
-                      <p className="text-sm text-gray-400 mt-1">
-                        {f.source} • {f.category}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1 font-mono">{f.asset_id}</p>
+                return (
+                  <div
+                    key={f.id}
+                    onClick={() => handleSelect(f)}
+                    className={`p-4 rounded-lg border cursor-pointer transition ${
+                      selected?.id === f.id
+                        ? 'bg-blue-900/20 border-blue-500'
+                        : 'bg-gray-800 border-gray-700 hover:border-gray-500'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start gap-4">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded ${SEVERITY_BADGE[f.severity] || SEVERITY_BADGE.Low}`}>
+                            {f.severity}
+                          </span>
+                          {f.jira_issue_key && (
+                            <span className="text-xs font-mono bg-blue-900/30 text-blue-300 border border-blue-700/40 px-2 py-0.5 rounded flex items-center gap-1">
+                              <LinkIcon className="w-3 h-3" />
+                              {f.jira_issue_key}
+                            </span>
+                          )}
+                        </div>
+                        <h3 className="font-semibold text-white">{f.title}</h3>
+                        <p className="text-sm text-gray-400 mt-0.5">
+                          {f.source} • {assetLabel}
+                        </p>
+                      </div>
+                      <ChevronRight className="text-gray-500 mt-1 shrink-0" />
                     </div>
-
-                    <ChevronRight className="text-gray-500 mt-1 shrink-0" />
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
 
-        {/* Detail pane */}
+        {/* ── Detail pane ───────────────────────────────────────────────── */}
         {selected && (
-          <div className="w-full md:w-1/2 p-6 overflow-y-auto bg-gray-900">
-            <button onClick={() => setSelected(null)} className="md:hidden text-blue-400 mb-4">
-              ← Back
+          <div className="w-full md:w-1/2 p-6 overflow-y-auto bg-gray-900 flex flex-col gap-6">
+            <button onClick={() => setSelected(null)} className="md:hidden text-blue-400 text-sm self-start">
+              ← Back to list
             </button>
 
-            <h2 className="text-2xl font-bold text-white mb-2">{selected.title}</h2>
+            {/* Finding meta */}
+            <div>
+              <h2 className="text-2xl font-bold text-white mb-3">{selected.title}</h2>
+              <div className="flex flex-wrap gap-3 text-sm">
+                {[
+                  ['Asset', selected.asset?.asset_name || selected.asset?.external_asset_id || 'unknown'],
+                  ['Source', selected.source],
+                  ['Severity', selected.severity],
+                  ['Category', selected.category],
+                ].map(([label, value]) => (
+                  <div key={label} className="bg-gray-800 rounded px-3 py-1.5 border border-gray-700">
+                    <span className="text-gray-500 text-xs uppercase tracking-wider">{label}: </span>
+                    <span className="text-gray-200 font-mono text-xs">{value}</span>
+                  </div>
+                ))}
+              </div>
 
-            <div className="flex flex-wrap gap-4 mb-6 text-sm text-gray-400">
-              <p>
-                Asset: <span className="font-mono text-gray-300">{selected.asset_id}</span>
-              </p>
-              <p>
-                Source: <span className="text-gray-300">{selected.source}</span>
-              </p>
-              <p>
-                Severity: <span className="text-gray-300">{selected.severity}</span>
-              </p>
+              {/* Jira already linked badge */}
+              {alreadyLinked && !ticket && (
+                <div className="mt-3 inline-flex items-center gap-2 bg-blue-900/20 border border-blue-600/40 text-blue-300 px-3 py-2 rounded-lg text-sm">
+                  <LinkIcon className="w-4 h-4" />
+                  Already linked to Jira: <span className="font-mono font-bold">{alreadyLinked}</span>
+                </div>
+              )}
             </div>
 
-            <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 mb-6">
+            {/* AI Analysis panel */}
+            <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
               <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
                 <Play className="w-4 h-4 text-blue-400" />
                 AI Copilot Analysis
@@ -240,10 +295,10 @@ export default function Findings() {
               {analyzing ? (
                 <div className="flex items-center gap-3 text-gray-400">
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  Analyzing risk context...
+                  Analysing risk context…
                 </div>
               ) : analysisError ? (
-                <p className="text-red-400">{analysisError}</p>
+                <p className="text-red-400 text-sm">{analysisError}</p>
               ) : analysis ? (
                 <div className="space-y-4">
                   <div>
@@ -256,7 +311,6 @@ export default function Findings() {
                       <h4 className="text-xs text-gray-500 uppercase font-bold tracking-wider">Severity Reasoning</h4>
                       <p className="text-gray-300 mt-1 text-sm">{analysis.severity_reasoning}</p>
                     </div>
-
                     <div>
                       <h4 className="text-xs text-gray-500 uppercase font-bold tracking-wider">Business Impact</h4>
                       <p className="text-gray-300 mt-1 text-sm">{analysis.business_impact}</p>
@@ -269,39 +323,64 @@ export default function Findings() {
                       {Array.isArray(analysis.remediation_steps) ? (
                         analysis.remediation_steps.map((step, idx) => <li key={idx}>{step}</li>)
                       ) : (
-                        <li>{String(analysis.remediation_steps)}</li>
+                        <li>{String(analysis.remediation_steps ?? '')}</li>
                       )}
                     </ul>
                   </div>
 
-                  <div className="bg-blue-900/10 p-3 rounded border border-blue-900/30">
-                    <h4 className="text-xs text-blue-400 uppercase font-bold tracking-wider">Proposed Jira Ticket</h4>
-                    <p className="text-white font-semibold mt-1">{analysis.jira_title}</p>
-                  </div>
+                  {analysis.jira_title && (
+                    <div className="bg-blue-900/10 p-3 rounded border border-blue-900/30">
+                      <h4 className="text-xs text-blue-400 uppercase font-bold tracking-wider">Proposed Jira Ticket</h4>
+                      <p className="text-white font-semibold mt-1">{analysis.jira_title}</p>
+                    </div>
+                  )}
                 </div>
               ) : (
-                <p className="text-gray-400">Select a finding to view AI analysis.</p>
+                <p className="text-gray-400 text-sm">AI analysis will appear here after selection.</p>
               )}
             </div>
 
-            <div className="flex gap-4">
-              {ticket ? (
-                <a
-                  href={ticket.ticket_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="bg-green-700 hover:bg-green-600 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition font-semibold w-full justify-center"
-                >
-                  <CheckCircle className="w-5 h-5" />
-                  Jira Ticket {ticket.ticket_id} Created
-                </a>
+            {/* Remediation CTA */}
+            <div>
+              {ticketResolved ? (
+                <div className="space-y-2">
+                  <div className="bg-green-900/20 border border-green-600/40 text-green-300 px-4 py-3 rounded-lg flex items-center gap-2 text-sm">
+                    <CheckCircle className="w-5 h-5 shrink-0" />
+                    {isAlreadyExists
+                      ? `Ticket already exists: ${ticketId}`
+                      : `Jira ticket created: ${ticketId}`}
+                  </div>
+                  {ticketUrl && (
+                    <a
+                      href={ticketUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-2 text-blue-400 hover:text-blue-300 text-sm underline underline-offset-2 transition"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      Open in Jira
+                    </a>
+                  )}
+                </div>
               ) : (
                 <button
                   onClick={handleRemediate}
-                  disabled={analyzing || remediating || !analysis || !selected?.id}
+                  disabled={analyzing || remediating || !analysis || !selected?.id || !!alreadyLinked}
                   className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg flex items-center justify-center gap-2 transition font-semibold shadow-lg shadow-blue-500/20 w-full"
                 >
-                  {remediating ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Auto-Remediate (Create Jira)'}
+                  {remediating ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Creating Jira ticket…
+                    </>
+                  ) : alreadyLinked ? (
+                    <>
+                      <LinkIcon className="w-5 h-5" />
+                      Already linked to Jira
+                    </>
+                  ) : (
+                    'Auto-Remediate (Create Jira)'
+                  )}
                 </button>
               )}
             </div>
