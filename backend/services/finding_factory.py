@@ -15,6 +15,9 @@ def build_finding(
     asset: dict,
     raw_data: dict | None = None,
     remediation: dict | None = None,
+    integration_id: str | None = None,
+    confidence: str | None = None,
+    scanner_metadata: dict | None = None,
 ) -> dict:
     now = datetime.now(timezone.utc).isoformat()
 
@@ -33,6 +36,9 @@ def build_finding(
         "asset": asset,
         "raw_data": raw_data or {},
         "remediation": remediation or {},
+        "integration_id": integration_id,
+        "confidence": confidence,
+        "scanner_metadata": scanner_metadata or {},
         "detected_at": now,
         "updated_at": now,
     }

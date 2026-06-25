@@ -4,7 +4,7 @@ from services.firebase_client import get_runtime_mode, upsert_finding, get_findi
 
 def run_full_scan(org_id: str = "demo-org") -> dict:
     aws_findings = scan_aws_environment(org_id)
-    github_findings = scan_github_repos() # Still using old scanner for now
+    github_findings = scan_github_repos(org_id)
     
     all_findings = aws_findings + github_findings
 
