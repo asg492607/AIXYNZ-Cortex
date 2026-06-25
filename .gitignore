@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+env/
+ENV/
+.env
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Secrets / credentials
+serviceAccountKey.json
+*.json.bak
+.env.local
+.env.production
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.suo
+*.user
+
+# Logs
+*.log
+uvicorn_*.txt
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
