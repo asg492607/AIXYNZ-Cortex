@@ -2,6 +2,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 import os
 import uuid
+import datetime
 
 _db = None
 _mock_db = {"findings": [], "assets": [], "remediations": []}
@@ -28,11 +29,31 @@ def get_db():
         init_firebase()
     return _db
 
-def save_finding(finding: dict):
+def format_finding(f: dict) -> dict:
+    """Enforces strict document shape for Firestore."""
+    now = datetime.datetime.utcnow().isoformat() + "Z"
+    return {
+        "org_id": f.get("org_id", "demo-org"),
+        "source": f.get("source", "unknown"),
+        "category": f.get("category", "vulnerability"),
+        "title": f.get("title", "Unknown Risk"),
+        "severity": f.get("severity", "Medium"),
+        "risk_score": f.get("risk_score", 50),
+        "asset_id": f.get("asset_id", f"asset:{uuid.uuid4().hex[:6]}"),
+        "status": f.get("status", "open"),
+        "jira_issue_key": f.get("jira_issue_key", None),
+        "created_at": f.get("created_at", now),
+        "updated_at": now,
+        "raw_data": f.get("raw_data", {})
+    }
+
+def save_finding(raw_finding: dict):
+    finding = format_finding(raw_finding)
     if _is_mock:
         finding["id"] = f"fnd_{uuid.uuid4().hex[:8]}"
         _mock_db["findings"].append(finding)
         return finding["id"]
+        
     db = get_db()
     if not db: return None
     doc_ref = db.collection("findings").document()

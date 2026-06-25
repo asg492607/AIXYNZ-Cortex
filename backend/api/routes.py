@@ -3,14 +3,16 @@ from services.aws_scanner import scan_s3_buckets
 from services.github_scanner import scan_github_repos
 from services.groq_client import analyze_finding
 from services.jira_client import create_remediation_ticket
+from services.firebase_client import save_finding, get_findings, save_remediation
+import services.firebase_client as firebase_client
 
 router = APIRouter()
 
-from services.firebase_client import save_finding, get_findings, save_remediation
+def get_mode():
+    return "demo" if firebase_client._is_mock else "live"
 
 @router.get("/dashboard/summary")
 async def get_dashboard_summary():
-    # If DB is empty, run a scan to seed it
     all_findings = get_findings()
     if not all_findings:
         aws_findings = scan_s3_buckets()
@@ -20,19 +22,22 @@ async def get_dashboard_summary():
         all_findings = get_findings()
         
     return {
+        "mode": get_mode(),
         "posture_score": max(0, 100 - len(all_findings) * 5),
-        "critical_risks_count": len([f for f in all_findings if f["severity"] == "Critical"]),
-        "high_risks_count": len([f for f in all_findings if f["severity"] == "High"]),
-        "top_findings": sorted(all_findings, key=lambda x: 0 if x['severity']=='Critical' else 1)[:5]
+        "critical_risks_count": len([f for f in all_findings if f.get("severity") == "Critical"]),
+        "high_risks_count": len([f for f in all_findings if f.get("severity") == "High"]),
+        "top_findings": sorted(all_findings, key=lambda x: 0 if x.get('severity')=='Critical' else 1)[:5]
     }
 
 @router.get("/findings")
 async def list_findings():
-    return get_findings()
+    return {
+        "mode": get_mode(),
+        "findings": get_findings()
+    }
 
 @router.post("/findings/analyze")
 async def ai_analyze_finding(title: str, source: str):
-    # Mocking passing raw data
     raw_data = {"note": "Raw data fetched from DB normally"}
     analysis = analyze_finding(title, source, raw_data)
     return analysis
