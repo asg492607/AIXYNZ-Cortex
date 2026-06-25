@@ -2,7 +2,7 @@
 
 <img src="https://img.shields.io/badge/AIXYNZ-Cortex-blue?style=for-the-badge&logo=shield&logoColor=white" alt="AIXYNZ Cortex" />
 
-# AIXYNZ Cortex
+# AIXYNZ-Cortex
 
 ### AI-Powered Security Operating System
 
