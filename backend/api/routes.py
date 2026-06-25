@@ -6,24 +6,29 @@ from services.jira_client import create_remediation_ticket
 
 router = APIRouter()
 
+from services.firebase_client import save_finding, get_findings, save_remediation
+
 @router.get("/dashboard/summary")
 async def get_dashboard_summary():
-    aws_findings = scan_s3_buckets()
-    github_findings = scan_github_repos()
-    all_findings = aws_findings + github_findings
-    
+    # If DB is empty, run a scan to seed it
+    all_findings = get_findings()
+    if not all_findings:
+        aws_findings = scan_s3_buckets()
+        github_findings = scan_github_repos()
+        for f in aws_findings + github_findings:
+            save_finding(f)
+        all_findings = get_findings()
+        
     return {
         "posture_score": max(0, 100 - len(all_findings) * 5),
         "critical_risks_count": len([f for f in all_findings if f["severity"] == "Critical"]),
         "high_risks_count": len([f for f in all_findings if f["severity"] == "High"]),
-        "top_findings": all_findings[:5] # Mocking Top 5
+        "top_findings": sorted(all_findings, key=lambda x: 0 if x['severity']=='Critical' else 1)[:5]
     }
 
 @router.get("/findings")
 async def list_findings():
-    aws_findings = scan_s3_buckets()
-    github_findings = scan_github_repos()
-    return aws_findings + github_findings
+    return get_findings()
 
 @router.post("/findings/analyze")
 async def ai_analyze_finding(title: str, source: str):
