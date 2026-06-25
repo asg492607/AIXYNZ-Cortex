@@ -10,7 +10,8 @@ def run_full_scan(org_id: str = "demo-org") -> dict:
 
     saved_ids = []
     for finding in all_findings:
-        finding["org_id"] = org_id
+        if not finding.get("org_id"):
+            finding["org_id"] = org_id
         saved_ids.append(upsert_finding(finding))
 
     findings = get_findings(org_id)

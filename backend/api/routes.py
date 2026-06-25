@@ -25,6 +25,9 @@ class RemediateFindingRequest(BaseModel):
     finding_id: str
     org_id: Optional[str] = DEFAULT_ORG_ID
 
+class RescanRequest(BaseModel):
+    org_id: str = DEFAULT_ORG_ID
+
 def sort_findings(findings: list[dict]) -> list[dict]:
     return sorted(
         findings,
@@ -35,9 +38,12 @@ def sort_findings(findings: list[dict]) -> list[dict]:
         reverse=True,
     )
 
-@router.post("/findings/rescan")
-async def rescan_findings(org_id: str = DEFAULT_ORG_ID):
-    scan_result = run_full_scan(org_id)
+@router.post("/scan/rescan")
+async def rescan_environment(payload: RescanRequest):
+    """
+    Explicit rescan endpoint for frontend 'Rescan' button / future scheduled scans.
+    """
+    scan_result = run_full_scan(payload.org_id)
     return scan_result
 
 @router.get("/dashboard/summary")
@@ -53,6 +59,7 @@ async def get_dashboard_summary(org_id: str = DEFAULT_ORG_ID):
     return {
         "mode": get_runtime_mode(),
         "org_id": org_id,
+        "findings_count": len(findings),
         "posture_score": max(0, 100 - len(findings) * 5),
         "critical_risks_count": len([f for f in findings if f.get("severity") == "Critical"]),
         "high_risks_count": len([f for f in findings if f.get("severity") == "High"]),
@@ -65,6 +72,7 @@ async def list_findings(org_id: str = DEFAULT_ORG_ID):
     return {
         "mode": get_runtime_mode(),
         "org_id": org_id,
+        "findings_count": len(findings),
         "findings": findings,
     }
 
@@ -96,12 +104,18 @@ async def ai_analyze_finding(request: AnalyzeFindingRequest):
 async def api_remediate_finding(request: RemediateFindingRequest):
     try:
         result = remediate_finding(request.org_id, request.finding_id)
+        
+        # Flat response structure
         return {
             "mode": get_runtime_mode(),
             "org_id": request.org_id,
             "finding_id": request.finding_id,
-            "ticket": result.get("ticket") or result,
+            "status": result.get("status") or "success",
+            "ticket_id": result.get("ticket_id") or (result.get("ticket", {}).get("ticket_id") if isinstance(result.get("ticket"), dict) else None) or result.get("id"),
+            "ticket_url": result.get("ticket_url") or (result.get("ticket", {}).get("ticket_url") if isinstance(result.get("ticket"), dict) else None) or result.get("url"),
             "analysis": result.get("analysis")
         }
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

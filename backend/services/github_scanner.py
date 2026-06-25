@@ -55,12 +55,12 @@ def get_mock_findings(org_id: str = "demo-org"):
             org_id=org_id,
             source="github",
             source_type="code",
-            category="vulnerability",
+            category="coverage_gap",
             finding_type="github_dependency_alerts_unavailable",
             title="Dependabot alerts unavailable for aixynz-core",
             description="GitHub Advanced Security or Dependabot is not enabled/accessible for this repository.",
             severity="Low",
-            risk_score=30,
+            risk_score=15,
             external_finding_key="github:dependabot-unavailable:aixynz/aixynz-core",
             asset={
                 "external_asset_id": "github:repo:aixynz/aixynz-core",
@@ -75,6 +75,22 @@ def get_mock_findings(org_id: str = "demo-org"):
             scanner_metadata={"mode": "demo", "scanner": "github_dependabot_posture"},
         )
     ]
+
+def get_target_repos(g: Github) -> list:
+    owner = os.getenv("GITHUB_OWNER")
+    if owner:
+        try:
+            org = g.get_organization(owner)
+            return list(org.get_repos())
+        except GithubException:
+            pass
+        try:
+            user = g.get_user(owner)
+            return list(user.get_repos())
+        except GithubException:
+            pass
+    
+    return list(g.get_user().get_repos())
 
 def scan_repo_posture(repo, org_id: str) -> list[dict]:
     findings = []
@@ -133,13 +149,13 @@ def scan_repo_posture(repo, org_id: str) -> list[dict]:
             org_id=org_id,
             source="github",
             source_type="code",
-            category="repo_posture",
-            finding_type="missing_branch_protection",
-            title=f"Repository {full_name} is missing branch protection on {default_branch}",
-            description="Could not verify branch protection (likely unprotected or missing permissions).",
-            severity="Medium",
-            risk_score=60,
-            external_finding_key=f"github:branch-protection-missing:{full_name}:{default_branch}",
+            category="coverage_gap",
+            finding_type="github_branch_protection_unverified",
+            title=f"Branch protection verification failed for {full_name}",
+            description="Could not verify branch protection due to insufficient permissions or branch not found.",
+            severity="Low",
+            risk_score=15,
+            external_finding_key=f"github:branch-protection-unverified:{full_name}:{default_branch}",
             asset=asset,
             raw_data={"repo": full_name, "branch": default_branch, "error": "fetch_failed"},
             confidence="medium",
@@ -162,19 +178,16 @@ def scan_repo_dependabot(repo, org_id: str) -> list[dict]:
         "region": "global",
     }
     
-    # In PyGithub, fetching dependabot alerts requires specific org permissions and REST calls
-    # For MVP, we will assume we lack permissions and emit an honest posture finding.
-    
     findings.append(build_finding(
         org_id=org_id,
         source="github",
         source_type="code",
-        category="vulnerability",
+        category="coverage_gap",
         finding_type="github_dependency_alerts_unavailable",
         title=f"Dependabot alerts unavailable for {full_name}",
         description="GitHub Advanced Security or Dependabot is not enabled/accessible for this repository.",
         severity="Low",
-        risk_score=30,
+        risk_score=15,
         external_finding_key=f"github:dependabot-unavailable:{full_name}",
         asset=asset,
         raw_data={"repo": full_name},
@@ -202,12 +215,12 @@ def scan_repo_secret_scanning(repo, org_id: str) -> list[dict]:
         org_id=org_id,
         source="github",
         source_type="code",
-        category="secret_exposure",
+        category="coverage_gap",
         finding_type="github_secret_scanning_unavailable",
         title=f"Secret scanning alerts unavailable for {full_name}",
         description="GitHub Secret Scanning is not enabled or accessible for this repository.",
         severity="Low",
-        risk_score=30,
+        risk_score=15,
         external_finding_key=f"github:secret-scanning-unavailable:{full_name}",
         asset=asset,
         raw_data={"repo": full_name},
@@ -229,10 +242,14 @@ def scan_github_repos(org_id: str = "demo-org") -> list[dict]:
         
     try:
         g = Github(token)
-        user = g.get_user()
         findings = []
         
-        repos = list(user.get_repos()[:5])
+        all_repos = get_target_repos(g)
+        
+        # We limit unavailable findings to private/active repos to reduce noise.
+        # But for MVP we will limit scanning to 5 repos total for speed.
+        repos = all_repos[:5]
+        
         for repo in repos:
             findings.extend(scan_repo_posture(repo, org_id))
             findings.extend(scan_repo_dependabot(repo, org_id))
