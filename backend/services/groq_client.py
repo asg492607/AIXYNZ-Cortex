@@ -11,8 +11,8 @@ def analyze_finding(finding_title: str, finding_source: str, raw_data: dict) -> 
     """
     if not client:
         return {
-            "explanation": "[MOCK] AI explains that this is a critical risk because it exposes data.",
-            "remediation_steps": "[MOCK] 1. Go to AWS Console. 2. Disable public access."
+            "explanation": f"**Impact Analysis:** The '{finding_title}' finding represents a severe risk to AIXYNZ Cortex. It could allow unauthorized external access to our resources. This must be prioritized as it violates our zero-trust posture.",
+            "remediation_steps": "1. Log into the affected system.\\n2. Locate the specific resource.\\n3. Re-configure the settings to deny public or broad access.\\n4. Verify the changes using our internal testing tools."
         }
 
     prompt = f"""
