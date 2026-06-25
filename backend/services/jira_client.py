@@ -1,26 +1,90 @@
+import os
+import requests
 import uuid
 
-def create_remediation_ticket(finding_title: str, ai_analysis: dict) -> dict:
-    """
-    Mock implementation of a Jira client.
-    In reality, this would use requests to POST to the Jira REST API
-    and create an Issue of type 'Task' or 'Bug'.
-    """
-    ticket_id = f"CORTEX-{str(uuid.uuid4())[:8].upper()}"
+def create_remediation_ticket(org_id: str, finding: dict, ai_analysis: dict) -> dict:
+    base_url = os.getenv("JIRA_BASE_URL")
+    email = os.getenv("JIRA_EMAIL")
+    token = os.getenv("JIRA_API_TOKEN")
+    project_key = os.getenv("JIRA_PROJECT_KEY", "SEC")
+
+    if not all([base_url, email, token]):
+        ticket_id = f"DEMO-{str(uuid.uuid4())[:8].upper()}"
+        return {
+            "status": "demo_ticket_created",
+            "ticket_id": ticket_id,
+            "ticket_url": f"https://example.atlassian.net/browse/{ticket_id}"
+        }
+
+    summary = f"[AIXYNZ Cortex][{finding.get('severity', 'High')}] {finding.get('title', 'Security Finding')}"
     
-    # In a real scenario:
-    # payload = {
-    #     "fields": {
-    #         "project": {"key": "CORTEX"},
-    #         "summary": f"Fix Security Risk: {finding_title}",
-    #         "description": f"AI Explanation:\\n{ai_analysis.get('explanation')}\\n\\nRemediation:\\n{ai_analysis.get('remediation_steps')}",
-    #         "issuetype": {"name": "Task"}
-    #     }
-    # }
-    # requests.post(JIRA_URL, json=payload, auth=(EMAIL, TOKEN))
+    asset_info = finding.get('asset', {})
+    asset_str = asset_info.get('external_asset_id', finding.get('asset_id', 'unknown'))
     
-    return {
-        "status": "ticket_created",
-        "ticket_id": ticket_id,
-        "url": f"https://aixynz.atlassian.net/browse/{ticket_id}"
+    description = f"""AIXYNZ Cortex Security Remediation Ticket
+
+Finding ID: {finding.get('id', 'unknown')}
+Severity: {finding.get('severity', 'unknown')}
+Risk Score: {finding.get('risk_score', 'unknown')}
+Source: {finding.get('source', 'unknown')}
+Asset: {asset_str}
+
+Summary
+{ai_analysis.get('summary', 'No summary provided.')}
+
+Business Impact
+{ai_analysis.get('business_impact', 'Unknown impact.')}
+
+Recommended Remediation
+"""
+    steps = ai_analysis.get('remediation_steps', [])
+    if isinstance(steps, list):
+        for i, step in enumerate(steps, 1):
+            description += f"{i}. {step}\n"
+    else:
+        description += f"{steps}\n"
+        
+    description += f"""
+Raw Context
+{str(finding.get('raw_data', ''))}
+"""
+
+    payload = {
+        "fields": {
+            "project": {"key": project_key},
+            "summary": summary,
+            "description": description,
+            "issuetype": {"name": "Task"},
+            "labels": [
+                "aixynz-cortex",
+                "security",
+                finding.get("source", "unknown").lower()
+            ]
+        }
     }
+
+    try:
+        resp = requests.post(
+            f"{base_url}/rest/api/3/issue",
+            json=payload,
+            auth=(email, token),
+            headers={"Accept": "application/json", "Content-Type": "application/json"},
+            timeout=20,
+        )
+        resp.raise_for_status()
+        issue = resp.json()
+        key = issue["key"]
+
+        return {
+            "status": "ticket_created",
+            "ticket_id": key,
+            "ticket_url": f"{base_url}/browse/{key}",
+        }
+    except Exception as e:
+        print(f"Jira API error: {e}")
+        ticket_id = f"ERR-{str(uuid.uuid4())[:8].upper()}"
+        return {
+            "status": "error_fallback_ticket_created",
+            "ticket_id": ticket_id,
+            "ticket_url": f"https://example.atlassian.net/browse/{ticket_id}"
+        }

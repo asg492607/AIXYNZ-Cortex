@@ -1,5 +1,4 @@
 import datetime
-import hashlib
 import os
 import uuid
 from typing import Dict, List, Optional
@@ -61,46 +60,47 @@ def utc_now() -> str:
     return datetime.datetime.utcnow().isoformat() + "Z"
 
 
-def build_finding_fingerprint(f: dict) -> str:
-    org_id = f.get("org_id", "demo-org")
-    source = f.get("source", "unknown")
-    category = f.get("category", "vulnerability")
-    asset_id = f.get("asset_id", "unknown-asset")
-    title = f.get("title", "unknown-title")
-    raw = f"{org_id}|{source}|{category}|{asset_id}|{title}"
-    return hashlib.sha256(raw.encode()).hexdigest()
-
-
 def format_finding(f: dict) -> dict:
     now = utc_now()
+    
+    # If the finding was already built by finding_factory, it will have most of these.
+    # We just ensure minimum fields are present.
     org_id = f.get("org_id", "demo-org")
+    
+    # Use explicit external_finding_key, fallback to title hash if missing (for old data)
+    ext_key = f.get("external_finding_key")
+    if not ext_key:
+        import hashlib
+        ext_key = hashlib.sha256(f"{org_id}|{f.get('source')}|{f.get('title')}".encode()).hexdigest()
 
     finding = {
         "id": f.get("id"),
         "org_id": org_id,
         "source": f.get("source", "unknown"),
+        "source_type": f.get("source_type", "unknown"),
         "category": f.get("category", "vulnerability"),
+        "finding_type": f.get("finding_type", "unknown"),
         "title": f.get("title", "Unknown Risk"),
+        "description": f.get("description", ""),
         "severity": f.get("severity", "Medium"),
         "risk_score": f.get("risk_score", 50),
-        "asset_id": f.get("asset_id", f"asset:{uuid.uuid4().hex[:6]}"),
         "status": f.get("status", "open"),
+        "external_finding_key": ext_key,
+        "asset": f.get("asset", {"asset_id": f.get("asset_id", f"asset:{uuid.uuid4().hex[:6]}")}),
         "jira_issue_key": f.get("jira_issue_key"),
-        "fingerprint": f.get("fingerprint"),
         "created_at": f.get("created_at", now),
         "updated_at": now,
         "raw_data": f.get("raw_data", {}),
+        "remediation": f.get("remediation", {}),
+        "detected_at": f.get("detected_at", now),
     }
-
-    if not finding["fingerprint"]:
-        finding["fingerprint"] = build_finding_fingerprint(finding)
 
     return finding
 
 
 def _upsert_mock_finding(finding: dict) -> str:
     existing = next(
-        (x for x in _mock_db["findings"] if x.get("fingerprint") == finding["fingerprint"] and x.get("org_id") == finding["org_id"]),
+        (x for x in _mock_db["findings"] if x.get("external_finding_key") == finding["external_finding_key"] and x.get("org_id") == finding["org_id"]),
         None,
     )
 
@@ -131,7 +131,7 @@ def upsert_finding(raw_finding: dict) -> str:
     query = (
         db.collection("findings")
         .where("org_id", "==", finding["org_id"])
-        .where("fingerprint", "==", finding["fingerprint"])
+        .where("external_finding_key", "==", finding["external_finding_key"])
         .limit(1)
         .stream()
     )

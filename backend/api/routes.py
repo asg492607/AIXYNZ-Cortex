@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from services.aws_scanner import scan_s3_buckets
+from services.aws_scanner import scan_aws_environment
 from services.github_scanner import scan_github_repos
 from services.firebase_client import (
     get_finding_by_id,
@@ -44,7 +44,7 @@ def sort_findings(findings: list[dict]) -> list[dict]:
 
 @router.post("/findings/rescan")
 async def rescan_findings(org_id: str = DEFAULT_ORG_ID):
-    aws_findings = scan_s3_buckets()
+    aws_findings = scan_aws_environment(org_id)
     github_findings = scan_github_repos()
 
     all_raw = []
@@ -68,7 +68,7 @@ async def get_dashboard_summary(org_id: str = DEFAULT_ORG_ID):
 
     # demo bootstrap only
     if not findings and get_runtime_mode() == "demo":
-        aws_findings = scan_s3_buckets()
+        aws_findings = scan_aws_environment(org_id)
         github_findings = scan_github_repos()
         for f in aws_findings + github_findings:
             f["org_id"] = org_id
