@@ -15,7 +15,6 @@ _mock_db = {
     "remediations": [],
 }
 
-
 def init_firebase():
     global _db, _runtime_mode
 
@@ -42,36 +41,36 @@ def init_firebase():
         _runtime_mode = "demo"
         print(f"Firebase initialization failed: {e}. Running in DEMO mode.")
 
-
 def get_db():
     global _db
     if _db is None and _runtime_mode == "unknown":
         init_firebase()
     return _db
 
-
 def get_runtime_mode() -> str:
     if _runtime_mode == "unknown":
         init_firebase()
     return _runtime_mode
 
-
 def utc_now() -> str:
     return datetime.datetime.utcnow().isoformat() + "Z"
-
 
 def format_finding(f: dict) -> dict:
     now = utc_now()
     
-    # If the finding was already built by finding_factory, it will have most of these.
-    # We just ensure minimum fields are present.
     org_id = f.get("org_id", "demo-org")
     
-    # Use explicit external_finding_key, fallback to title hash if missing (for old data)
     ext_key = f.get("external_finding_key")
     if not ext_key:
         import hashlib
         ext_key = hashlib.sha256(f"{org_id}|{f.get('source')}|{f.get('title')}".encode()).hexdigest()
+
+    asset = f.get("asset") or {
+        "external_asset_id": f.get("asset_id", f"asset:{uuid.uuid4().hex[:6]}"),
+        "asset_type": "unknown",
+        "asset_name": f.get("asset_id", "unknown"),
+        "provider": f.get("source", "unknown").lower(),
+    }
 
     finding = {
         "id": f.get("id"),
@@ -86,7 +85,7 @@ def format_finding(f: dict) -> dict:
         "risk_score": f.get("risk_score", 50),
         "status": f.get("status", "open"),
         "external_finding_key": ext_key,
-        "asset": f.get("asset", {"asset_id": f.get("asset_id", f"asset:{uuid.uuid4().hex[:6]}")}),
+        "asset": asset,
         "jira_issue_key": f.get("jira_issue_key"),
         "created_at": f.get("created_at", now),
         "updated_at": now,
@@ -96,7 +95,6 @@ def format_finding(f: dict) -> dict:
     }
 
     return finding
-
 
 def _upsert_mock_finding(finding: dict) -> str:
     existing = next(
@@ -116,7 +114,6 @@ def _upsert_mock_finding(finding: dict) -> str:
     finding["id"] = finding.get("id") or f"fnd_{uuid.uuid4().hex[:8]}"
     _mock_db["findings"].append(finding)
     return finding["id"]
-
 
 def upsert_finding(raw_finding: dict) -> str:
     finding = format_finding(raw_finding)
@@ -150,7 +147,6 @@ def upsert_finding(raw_finding: dict) -> str:
     doc_ref.set(finding)
     return finding["id"]
 
-
 def get_findings(org_id: str = "demo-org") -> List[dict]:
     if get_runtime_mode() == "demo":
         return [f for f in _mock_db["findings"] if f.get("org_id") == org_id]
@@ -162,11 +158,38 @@ def get_findings(org_id: str = "demo-org") -> List[dict]:
     docs = db.collection("findings").where("org_id", "==", org_id).stream()
     return [doc.to_dict() for doc in docs]
 
-
 def get_finding_by_id(finding_id: str, org_id: str = "demo-org") -> Optional[dict]:
     findings = get_findings(org_id)
     return next((f for f in findings if f.get("id") == finding_id), None)
 
+def update_finding_jira_key(finding_id: str, jira_issue_key: str, org_id: str = "demo-org"):
+    if get_runtime_mode() == "demo":
+        existing = next((x for x in _mock_db["findings"] if x.get("id") == finding_id and x.get("org_id") == org_id), None)
+        if existing:
+            existing["jira_issue_key"] = jira_issue_key
+            existing["updated_at"] = utc_now()
+        return
+
+    db = get_db()
+    if not db:
+        return
+        
+    db.collection("findings").document(finding_id).update({
+        "jira_issue_key": jira_issue_key,
+        "updated_at": utc_now()
+    })
+
+def get_remediation_by_finding_id(finding_id: str, org_id: str = "demo-org") -> Optional[dict]:
+    if get_runtime_mode() == "demo":
+        return next((r for r in _mock_db["remediations"] if r.get("finding_id") == finding_id and r.get("org_id") == org_id), None)
+        
+    db = get_db()
+    if not db:
+        return None
+        
+    docs = db.collection("remediations").where("org_id", "==", org_id).where("finding_id", "==", finding_id).limit(1).stream()
+    docs = list(docs)
+    return docs[0].to_dict() if docs else None
 
 def save_remediation(remediation: dict, org_id: str = "demo-org"):
     payload = {
@@ -174,6 +197,12 @@ def save_remediation(remediation: dict, org_id: str = "demo-org"):
         "ticket_url": remediation.get("ticket_url"),
         "finding_id": remediation.get("finding_id"),
         "org_id": org_id,
+        "source": remediation.get("source"),
+        "severity": remediation.get("severity"),
+        "title": remediation.get("title"),
+        "jira_issue_key": remediation.get("ticket_id"),
+        "workflow_state": remediation.get("workflow_state", "open"),
+        "creation_mode": remediation.get("creation_mode", "auto"),
         "status": remediation.get("status", "open"),
         "created_at": remediation.get("created_at", utc_now()),
         "updated_at": utc_now(),

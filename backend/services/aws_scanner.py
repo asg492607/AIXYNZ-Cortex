@@ -4,6 +4,14 @@ from services.finding_factory import build_finding
 
 SENSITIVE_PORTS = {22, 3389, 5432, 3306, 6379, 27017}
 
+def get_enabled_regions(session):
+    try:
+        ec2 = session.client("ec2", region_name="us-east-1")
+        resp = ec2.describe_regions(AllRegions=False)
+        return [r["RegionName"] for r in resp.get("Regions", [])]
+    except Exception:
+        return ["us-east-1"]
+
 def get_mock_findings(org_id: str = "demo-org"):
     return [
         build_finding(
@@ -79,7 +87,8 @@ def scan_s3_exposure(session, org_id: str, account_id: str) -> list[dict]:
         
         for bucket in response.get('Buckets', []):
             bucket_name = bucket['Name']
-            is_public = False
+            is_truly_public = False
+            is_pab_weak = False
             exposure_reason = []
             
             try:
@@ -87,40 +96,45 @@ def scan_s3_exposure(session, org_id: str, account_id: str) -> list[dict]:
                 for grant in acl.get('Grants', []):
                     grantee = grant.get('Grantee', {})
                     if grantee.get('URI') == 'http://acs.amazonaws.com/groups/global/AllUsers':
-                        is_public = True
+                        is_truly_public = True
                         exposure_reason.append("public ACL grant")
                         break
             except ClientError as e:
-                print(f"Warning: Could not get ACL for bucket {bucket_name}: {e}")
+                pass
+
+            try:
+                pol = s3.get_bucket_policy_status(Bucket=bucket_name)
+                if pol.get('PolicyStatus', {}).get('IsPublic'):
+                    is_truly_public = True
+                    exposure_reason.append("bucket policy is public")
+            except ClientError as e:
+                pass
 
             try:
                 pab = s3.get_public_access_block(Bucket=bucket_name)
                 conf = pab.get('PublicAccessBlockConfiguration', {})
                 if not conf.get('IgnorePublicAcls') or not conf.get('BlockPublicPolicy'):
-                    is_public = True
-                    exposure_reason.append("Public Access Block missing or disabled")
+                    is_pab_weak = True
             except ClientError as e:
                 if 'NoSuchPublicAccessBlockConfiguration' in str(e):
-                    is_public = True
-                    exposure_reason.append("No Public Access Block configured")
-                else:
-                    print(f"Warning: Could not get PublicAccessBlock for bucket {bucket_name}: {e}")
+                    is_pab_weak = True
                     
             try:
-                pol = s3.get_bucket_policy_status(Bucket=bucket_name)
-                if pol.get('PolicyStatus', {}).get('IsPublic'):
-                    is_public = True
-                    exposure_reason.append("bucket policy is public")
-            except ClientError as e:
-                pass # Often no policy exists
+                loc = s3.get_bucket_location(Bucket=bucket_name)
+                region = loc.get('LocationConstraint') or 'us-east-1'
+            except:
+                region = 'unknown'
 
-            if is_public:
-                try:
-                    loc = s3.get_bucket_location(Bucket=bucket_name)
-                    region = loc.get('LocationConstraint') or 'us-east-1'
-                except:
-                    region = 'unknown'
+            asset = {
+                "external_asset_id": f"aws:s3:::{bucket_name}",
+                "asset_type": "s3_bucket",
+                "asset_name": bucket_name,
+                "provider": "aws",
+                "account_id": account_id,
+                "region": region,
+            }
 
+            if is_truly_public:
                 findings.append(build_finding(
                     org_id=org_id,
                     source="aws",
@@ -132,15 +146,23 @@ def scan_s3_exposure(session, org_id: str, account_id: str) -> list[dict]:
                     severity="Critical",
                     risk_score=95,
                     external_finding_key=f"aws:s3-public:{bucket_name}",
-                    asset={
-                        "external_asset_id": f"aws:s3:::{bucket_name}",
-                        "asset_type": "s3_bucket",
-                        "asset_name": bucket_name,
-                        "provider": "aws",
-                        "account_id": account_id,
-                        "region": region,
-                    },
+                    asset=asset,
                     raw_data={"bucket": bucket_name, "reasons": exposure_reason},
+                ))
+            elif is_pab_weak:
+                findings.append(build_finding(
+                    org_id=org_id,
+                    source="aws",
+                    source_type="cloud",
+                    category="cloud_posture",
+                    finding_type="weak_s3_public_access_block",
+                    title=f"S3 bucket {bucket_name} has missing or permissive Public Access Block",
+                    description="Bucket is missing standard PAB settings, risking future accidental public exposure.",
+                    severity="Medium",
+                    risk_score=60,
+                    external_finding_key=f"aws:s3-weak-pab:{bucket_name}",
+                    asset=asset,
+                    raw_data={"bucket": bucket_name},
                 ))
     except Exception as e:
         print(f"Error scanning S3: {e}")
@@ -148,19 +170,29 @@ def scan_s3_exposure(session, org_id: str, account_id: str) -> list[dict]:
 
 def scan_security_groups(session, org_id: str, account_id: str) -> list[dict]:
     findings = []
-    try:
-        ec2 = session.client('ec2', region_name='us-east-1') # Assuming us-east-1 for MVP
-        paginator = ec2.get_paginator('describe_security_groups')
-        for page in paginator.paginate():
-            for sg in page.get('SecurityGroups', []):
-                sg_id = sg['GroupId']
-                for rule in sg.get('IpPermissions', []):
-                    from_port = rule.get('FromPort')
-                    to_port = rule.get('ToPort')
-                    if from_port and from_port == to_port and from_port in SENSITIVE_PORTS:
-                        for ip_range in rule.get('IpRanges', []):
-                            cidr = ip_range.get('CidrIp')
-                            if cidr in ('0.0.0.0/0', '::/0'):
+    regions = get_enabled_regions(session)
+    
+    for region in regions:
+        try:
+            ec2 = session.client('ec2', region_name=region)
+            paginator = ec2.get_paginator('describe_security_groups')
+            for page in paginator.paginate():
+                for sg in page.get('SecurityGroups', []):
+                    sg_id = sg['GroupId']
+                    for rule in sg.get('IpPermissions', []):
+                        from_port = rule.get('FromPort')
+                        to_port = rule.get('ToPort')
+                        if from_port and from_port == to_port and from_port in SENSITIVE_PORTS:
+                            
+                            cidrs = []
+                            for ip_range in rule.get('IpRanges', []):
+                                if ip_range.get('CidrIp') in ('0.0.0.0/0',):
+                                    cidrs.append(ip_range.get('CidrIp'))
+                            for ip_range in rule.get('Ipv6Ranges', []):
+                                if ip_range.get('CidrIpv6') in ('::/0',):
+                                    cidrs.append(ip_range.get('CidrIpv6'))
+                                    
+                            for cidr in cidrs:
                                 findings.append(build_finding(
                                     org_id=org_id,
                                     source="aws",
@@ -178,12 +210,12 @@ def scan_security_groups(session, org_id: str, account_id: str) -> list[dict]:
                                         "asset_name": sg_id,
                                         "provider": "aws",
                                         "account_id": account_id,
-                                        "region": "us-east-1", # assuming us-east-1
+                                        "region": region,
                                     },
                                     raw_data={"sg_id": sg_id, "port": from_port, "cidr": cidr},
                                 ))
-    except Exception as e:
-        print(f"Error scanning Security Groups: {e}")
+        except Exception as e:
+            print(f"Error scanning Security Groups in region {region}: {e}")
     return findings
 
 def scan_iam_roles(session, org_id: str, account_id: str) -> list[dict]:
@@ -220,7 +252,7 @@ def scan_iam_roles(session, org_id: str, account_id: str) -> list[dict]:
                                 raw_data={"role_name": role_name, "policy": "AdministratorAccess"},
                             ))
                 except ClientError as e:
-                    print(f"Warning: Could not list policies for role {role_name}: {e}")
+                    pass
     except Exception as e:
         print(f"Error scanning IAM Roles: {e}")
     return findings
