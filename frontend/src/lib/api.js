@@ -2,7 +2,11 @@ import axios from 'react';
 import axiosInstance from 'axios';
 
 // Get base URL from environment or fallback to localhost
-const API_BASE = 'http://localhost:8000/api/v1';
+let rawUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+if (rawUrl && !rawUrl.startsWith('http')) {
+  rawUrl = `https://${rawUrl}/api/v1`;
+}
+const API_BASE = rawUrl;
 
 const api = axiosInstance.create({
   baseURL: API_BASE,

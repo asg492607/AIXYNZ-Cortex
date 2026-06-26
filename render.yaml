@@ -1,0 +1,39 @@
+services:
+  # ── Cortex API (Backend) ───────────────────────────────────────────────────
+  - type: web
+    name: cortex-api
+    env: python
+    region: oregon
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: USE_RQ
+        value: "false"  # Free tier cannot run separate workers
+      - key: LOG_LEVEL
+        value: "INFO"
+      - key: FRONTEND_ORIGIN
+        # We allow requests from the frontend once it is deployed
+        fromService:
+          name: cortex-frontend
+          type: web
+          property: host
+    
+  # ── Cortex UI (Frontend) ───────────────────────────────────────────────────
+  - type: web
+    name: cortex-frontend
+    env: static
+    region: oregon
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          name: cortex-api
+          type: web
+          property: host
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

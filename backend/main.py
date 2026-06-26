@@ -35,9 +35,13 @@ app = FastAPI(
     description="Asset-centric Security Operations Platform",
 )
 
+frontend_origin = os.environ.get("FRONTEND_ORIGIN", "http://localhost:5173")
+if frontend_origin and not frontend_origin.startswith("http"):
+    frontend_origin = f"https://{frontend_origin}"
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.environ.get("FRONTEND_ORIGIN", "http://localhost:5173"), "*"],
+    allow_origins=[frontend_origin, "*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
