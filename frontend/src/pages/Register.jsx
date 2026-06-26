@@ -18,7 +18,7 @@ export default function Register() {
       setError('');
       setLoading(true);
       await register(email, password, orgName);
-      navigate('/');
+      navigate('/dashboard');
     } catch (err) {
       setError('Failed to create an account. ' + err.message);
     } finally {
@@ -35,7 +35,7 @@ export default function Register() {
       setError('');
       setLoading(true);
       await registerWithGoogle(orgName);
-      navigate('/');
+      navigate('/dashboard');
     } catch (err) {
       setError('Failed to sign up with Google.');
     } finally {

@@ -1,7 +1,8 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { Shield, LayoutDashboard, AlertCircle, Settings2, Database, ShieldCheck, Download, GitBranch, MessageSquare, Zap } from 'lucide-react';
 
+import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
 import Findings from './pages/Findings';
 import Integrations from './pages/Integrations';
@@ -20,7 +21,7 @@ import AttackGraph from './pages/AttackGraph';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 const NAV_ITEMS = [
-  { path: '/', label: 'Dashboard', Icon: LayoutDashboard },
+  { path: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard },
   { path: '/assets', label: 'Asset Inventory', Icon: Database },
   { path: '/findings', label: 'Risk Queue', Icon: AlertCircle },
   { path: '/attack-graph', label: 'Attack Graph', Icon: GitBranch },
@@ -83,14 +84,8 @@ function Sidebar() {
 }
 
 function ProtectedRoute({ children }) {
-  const { user, loading } = useAuth();
-  
-  if (loading) return <div className="flex h-screen items-center justify-center bg-gray-900 text-white">Loading...</div>;
-  if (!user) {
-    window.location.href = '/login';
-    return null;
-  }
-  
+  const { user, token } = useAuth();
+  if (!user && !token) return <Navigate to="/login" replace />;
   return children;
 }
 
@@ -110,10 +105,13 @@ export default function App() {
     <AuthProvider>
       <Router>
         <Routes>
+          {/* Public routes */}
+          <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          
-          <Route path="/" element={<ProtectedRoute><MainLayout><Dashboard /></MainLayout></ProtectedRoute>} />
+
+          {/* Protected app routes */}
+          <Route path="/dashboard" element={<ProtectedRoute><MainLayout><Dashboard /></MainLayout></ProtectedRoute>} />
           <Route path="/assets" element={<ProtectedRoute><MainLayout><AssetInventory /></MainLayout></ProtectedRoute>} />
           <Route path="/assets/:id" element={<ProtectedRoute><MainLayout><AssetDetails /></MainLayout></ProtectedRoute>} />
           <Route path="/findings" element={<ProtectedRoute><MainLayout><Findings /></MainLayout></ProtectedRoute>} />

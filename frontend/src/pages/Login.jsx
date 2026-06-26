@@ -17,7 +17,7 @@ export default function Login() {
       setError('');
       setLoading(true);
       await login(email, password);
-      navigate('/');
+      navigate('/dashboard');
     } catch (err) {
       setError('Failed to sign in. Please check your credentials.');
     } finally {
@@ -30,7 +30,7 @@ export default function Login() {
       setError('');
       setLoading(true);
       await loginWithGoogle();
-      navigate('/');
+      navigate('/dashboard');
     } catch (err) {
       setError('Failed to sign in with Google.');
     } finally {
