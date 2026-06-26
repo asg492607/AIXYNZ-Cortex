@@ -2,13 +2,13 @@
 
 Cortex is an **Asset-centric Security Operations Platform** designed to ingest, deduplicate, and manage security findings across your entire infrastructure (AWS, GitHub, etc.) with AI-driven remediation analysis.
 
-## Features (v0.2.0)
+## Features (MVP-3 / v0.4.0)
 
-- **Asset-First Inventory**: Findings are automatically tied to cloud and code assets. Cortex computes aggregate risk scores per asset.
-- **Compliance Mapping**: Automatically maps findings to CIS, SOC 2, and ISO 27001 controls.
-- **Background Scanning**: Uses RQ (Redis Queue) to dispatch long-running scans asynchronously.
-- **RBAC & Multi-tenancy**: Fully separated data boundaries between organizations. Roles for `admin`, `analyst`, and `viewer`.
-- **Automated Workflows**: Finding suppression with expiration, AI-generated remediation steps, and Jira/Slack integrations.
+- **Asset Intelligence & Attack Graph**: Findings are automatically tied to cloud and code assets. Cortex computes aggregate risk scores per asset and visualizes potential blast radiuses using interactive Attack Graphs.
+- **Compliance Mapping**: Automatically maps findings to CIS, SOC 2, and ISO 27001 controls with detailed drill-down views per framework.
+- **Dynamic Automation Workflows**: Configure condition-based triggers (e.g. "Severity == Critical") to automatically route alerts via Slack or Email.
+- **Public API & Key Management**: Secure, hash-backed API keys allow programmatic access to your data for custom integrations, backed by robust RBAC.
+- **Unified Deployment Architecture**: Streamlined single-service execution for ultra-low friction deployment on PaaS platforms like Render.
 
 ---
 
@@ -16,36 +16,42 @@ Cortex is an **Asset-centric Security Operations Platform** designed to ingest, 
 
 The easiest way to run Cortex locally is in **Demo Mode**. This runs completely in-memory without requiring AWS credentials, Firebase, or external databases.
 
-### Using Docker Compose (Recommended)
-Make sure you have Docker Desktop installed.
+### Unified Single-Service Deployment (Recommended)
+You can run the entire platform from the backend server locally, which mimics our production Render environment.
 
-```bash
-git clone https://github.com/asg492607/AIXYNZ-Cortex.git
-cd AIXYNZ-Cortex
-docker compose up --build
-```
-- Frontend UI: http://localhost:80
-- API Backend: http://localhost:8000
-- Open the UI and click **Login with Demo Admin** to explore.
+1. **Build the Frontend:**
+   ```bash
+   cd frontend
+   npm install
+   npm run build
+   ```
 
-### Manual Setup (Python & Node)
+2. **Start the Backend:**
+   ```bash
+   cd ../backend
+   python -m venv venv
+   source venv/bin/activate  # Or .\venv\Scripts\activate on Windows
+   pip install -r requirements.txt
+   uvicorn main:app --reload
+   ```
+   Open `http://localhost:8000`. Both the API and the React UI will be served seamlessly. Click **Login with Demo Admin** to explore.
+
+### Split Development Mode
+
+If you are developing and need hot-reloading for the frontend:
 
 1. **Start the API:**
    ```bash
    cd backend
-   python -m venv venv
-   source venv/bin/activate  # Or .\venv\Scripts\activate on Windows
-   pip install -r requirements.txt
    uvicorn main:app --reload
    ```
 
 2. **Start the Frontend:**
    ```bash
    cd frontend
-   npm install
    npm run dev
    ```
-   Open http://localhost:5173.
+   Open `http://localhost:5173`.
 
 ---
 
