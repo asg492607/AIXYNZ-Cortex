@@ -10,9 +10,11 @@ import {
   Loader2,
   Wifi,
   WifiOff,
+  Cpu
 } from 'lucide-react';
 
-import { API_BASE, ORG_ID } from '../lib/config';
+import api from '../lib/api';
+import ScanHistory from '../components/ScanHistory';
 
 const INTEGRATIONS = [
   {
@@ -39,6 +41,14 @@ const INTEGRATIONS = [
     envVar: 'JIRA_URL + JIRA_TOKEN',
     liveHint: 'Set JIRA_URL, JIRA_TOKEN, and JIRA_PROJECT in backend .env.',
   },
+  {
+    key: 'groq',
+    name: 'Groq',
+    Icon: Cpu,
+    desc: 'Provides blazing fast LLM analysis for security findings.',
+    envVar: 'GROQ_API_KEY',
+    liveHint: 'Set GROQ_API_KEY in backend .env.',
+  },
 ];
 
 export default function Integrations() {
@@ -46,11 +56,17 @@ export default function Integrations() {
   const [loadingMode, setLoadingMode] = useState(true);
   const [rescanning, setRescanning] = useState(false);
   const [rescanResult, setRescanResult] = useState(null);
+  const [integrationsData, setIntegrationsData] = useState([]);
 
   useEffect(() => {
-    axios
-      .get(`${API_BASE}/dashboard/summary`, { params: { org_id: ORG_ID } })
-      .then((res) => setMode(res.data?.mode ?? 'demo'))
+    Promise.all([
+      api.get(`/dashboard/summary`),
+      api.get(`/integrations`)
+    ])
+      .then(([dashRes, intRes]) => {
+        setMode(dashRes.data?.mode ?? 'demo');
+        setIntegrationsData(intRes.data.data || []);
+      })
       .catch(() => setMode('demo'))
       .finally(() => setLoadingMode(false));
   }, []);
@@ -59,7 +75,7 @@ export default function Integrations() {
     try {
       setRescanning(true);
       setRescanResult(null);
-      const res = await axios.post(`${API_BASE}/scan/rescan`, { org_id: ORG_ID });
+      const res = await api.post(`/scan/rescan`, {});
       setRescanResult({
         ok: true,
         msg: `Scan complete — ${res.data.findings_count ?? '?'} findings found.`,
@@ -134,9 +150,10 @@ export default function Integrations() {
       {/* Integration cards */}
       <div className="space-y-4">
         {INTEGRATIONS.map(({ key, name, Icon, desc, liveHint }) => {
-          // In MVP: derive status from runtime mode.
-          // All connectors are "connected" in live mode; demo = DEMO badge.
+          const dbInt = integrationsData.find(i => i.provider === key);
+          const isConnected = isLive ? (dbInt?.status === 'connected') : true; // Demo always connected
           const statusLive = isLive;
+          const lastSync = dbInt?.updated_at ? new Date(dbInt.updated_at).toLocaleDateString() : 'Never';
 
           return (
             <div
@@ -153,29 +170,37 @@ export default function Integrations() {
                   {!statusLive && (
                     <p className="text-xs text-yellow-500/80 mt-2">{liveHint}</p>
                   )}
+                  {statusLive && (
+                    <p className="text-xs text-gray-500 mt-2">Last Sync: {lastSync}</p>
+                  )}
                 </div>
               </div>
 
               <div className="flex items-center gap-3 shrink-0">
-                {statusLive ? (
+                {isConnected ? (
                   <span className="flex items-center gap-2 text-green-400 font-semibold bg-green-900/20 border border-green-700/40 px-3 py-1.5 rounded-lg text-sm">
                     <Wifi className="w-4 h-4" />
-                    LIVE
+                    CONNECTED
                   </span>
                 ) : (
-                  <span className="flex items-center gap-2 text-yellow-400 font-semibold bg-yellow-900/20 border border-yellow-700/40 px-3 py-1.5 rounded-lg text-sm">
+                  <span className="flex items-center gap-2 text-gray-400 font-semibold bg-gray-900/20 border border-gray-700/40 px-3 py-1.5 rounded-lg text-sm">
                     <WifiOff className="w-4 h-4" />
-                    DEMO
+                    DISCONNECTED
                   </span>
                 )}
 
                 <button className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white font-semibold text-sm transition">
-                  Configure
+                  {isConnected ? 'Configure' : 'Connect'}
                 </button>
               </div>
             </div>
           );
         })}
+      </div>
+
+      {/* Scan History Section */}
+      <div className="pt-8">
+        <ScanHistory />
       </div>
 
       {/* Footer note */}

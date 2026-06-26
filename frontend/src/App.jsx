@@ -5,11 +5,17 @@ import { Shield, LayoutDashboard, AlertCircle, Settings2 } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import Findings from './pages/Findings';
 import Integrations from './pages/Integrations';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import Profile from './pages/Profile';
+import AuditLogs from './pages/AuditLogs';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', Icon: LayoutDashboard },
   { path: '/findings', label: 'Risk Queue', Icon: AlertCircle },
   { path: '/integrations', label: 'Integrations', Icon: Settings2 },
+  { path: '/audit-logs', label: 'Audit Trail', Icon: Settings2 },
 ];
 
 function Sidebar() {
@@ -47,9 +53,39 @@ function Sidebar() {
         ))}
       </nav>
 
-      {/* Footer */}
+      {/* Footer / Profile */}
       <div className="p-4 border-t border-gray-800">
-        <p className="text-xs text-gray-600 text-center">Cortex MVP-1</p>
+        <Link
+          to="/profile"
+          className={`flex items-center gap-3 px-4 py-3 rounded-lg transition text-sm font-medium ${isActive('/profile')}`}
+        >
+          <Settings2 className="w-4 h-4 shrink-0" />
+          Profile
+        </Link>
+        <p className="text-xs text-gray-600 text-center mt-4">Cortex MVP-2</p>
+      </div>
+    </div>
+  );
+}
+
+function ProtectedRoute({ children }) {
+  const { user, loading } = useAuth();
+  
+  if (loading) return <div className="flex h-screen items-center justify-center bg-gray-900 text-white">Loading...</div>;
+  if (!user) {
+    window.location.href = '/login';
+    return null;
+  }
+  
+  return children;
+}
+
+function MainLayout({ children }) {
+  return (
+    <div className="flex h-screen bg-gray-900 text-gray-100 overflow-hidden font-sans">
+      <Sidebar />
+      <div className="flex-1 overflow-auto bg-gray-900/50">
+        {children}
       </div>
     </div>
   );
@@ -57,17 +93,19 @@ function Sidebar() {
 
 export default function App() {
   return (
-    <Router>
-      <div className="flex h-screen bg-gray-900 text-gray-100 overflow-hidden font-sans">
-        <Sidebar />
-        <div className="flex-1 overflow-auto bg-gray-900/50">
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/findings" element={<Findings />} />
-            <Route path="/integrations" element={<Integrations />} />
-          </Routes>
-        </div>
-      </div>
-    </Router>
+    <AuthProvider>
+      <Router>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          
+          <Route path="/" element={<ProtectedRoute><MainLayout><Dashboard /></MainLayout></ProtectedRoute>} />
+          <Route path="/findings" element={<ProtectedRoute><MainLayout><Findings /></MainLayout></ProtectedRoute>} />
+          <Route path="/integrations" element={<ProtectedRoute><MainLayout><Integrations /></MainLayout></ProtectedRoute>} />
+          <Route path="/audit-logs" element={<ProtectedRoute><MainLayout><AuditLogs /></MainLayout></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute><MainLayout><Profile /></MainLayout></ProtectedRoute>} />
+        </Routes>
+      </Router>
+    </AuthProvider>
   );
 }

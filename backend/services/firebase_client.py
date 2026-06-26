@@ -13,6 +13,12 @@ _mock_db = {
     "findings": [],
     "assets": [],
     "remediations": [],
+    "users": [],
+    "organizations": [{"id": "demo-org", "name": "Demo Organization", "plan": "enterprise"}],
+    "integrations": [],
+    "comments": [],
+    "scan_logs": [],
+    "audit_logs": [],
 }
 
 def init_firebase():

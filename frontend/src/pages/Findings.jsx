@@ -9,9 +9,12 @@ import {
   RefreshCcw,
   ExternalLink,
   LinkIcon,
+  MessageSquare,
+  User,
+  Clock
 } from 'lucide-react';
 
-import { API_BASE, ORG_ID } from '../lib/config';
+import api from '../lib/api';
 
 const SEVERITY_BADGE = {
   Critical: 'bg-red-900/60 text-red-200 border border-red-700/50',
@@ -21,7 +24,7 @@ const SEVERITY_BADGE = {
 };
 
 export default function Findings() {
-  const [data, setData] = useState({ mode: 'demo', org_id: ORG_ID, findings: [], findings_count: 0 });
+  const [data, setData] = useState({ mode: 'demo', findings: [], findings_count: 0 });
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState(null);
 
@@ -34,15 +37,15 @@ export default function Findings() {
   const [ticket, setTicket] = useState(null);
 
   const [rescanning, setRescanning] = useState(false);
+  const [comments, setComments] = useState([]);
+  const [newComment, setNewComment] = useState('');
 
   // ── Data loaders ──────────────────────────────────────────────────────────
 
   const loadFindings = async () => {
     try {
       setListError(null);
-      const res = await axios.get(`${API_BASE}/findings`, {
-        params: { org_id: ORG_ID },
-      });
+      const res = await api.get(`/findings`);
       setData(res.data);
     } catch (err) {
       console.error(err);
@@ -61,7 +64,7 @@ export default function Findings() {
   const handleRescan = async () => {
     try {
       setRescanning(true);
-      await axios.post(`${API_BASE}/scan/rescan`, { org_id: ORG_ID });
+      await api.post(`/scan/rescan`, {});
       await loadFindings();
 
       // preserve selection if finding still exists
@@ -88,9 +91,8 @@ export default function Findings() {
     setAnalyzing(true);
 
     try {
-      const res = await axios.post(`${API_BASE}/findings/analyze`, {
+      const res = await api.post(`/findings/analyze`, {
         finding_id: selectedId,
-        org_id: ORG_ID,
       });
 
       // stale-response guard
@@ -99,6 +101,10 @@ export default function Findings() {
         setAnalysis(res.data.analysis);
         return prev;
       });
+      
+      const commentsRes = await api.get(`/findings/${selectedId}/comments`);
+      setComments(commentsRes.data.data || []);
+      
     } catch (err) {
       console.error(err);
       setAnalysisError('AI analysis failed. Check backend connectivity.');
@@ -107,13 +113,45 @@ export default function Findings() {
     }
   };
 
+  const handleUpdateStatus = async (status) => {
+    try {
+      await api.patch(`/findings/${selected.id}/status`, { status });
+      setSelected(prev => ({ ...prev, status }));
+      loadFindings(); // refresh list to reflect status
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAssign = async (owner) => {
+    try {
+      await api.patch(`/findings/${selected.id}/assign`, { owner });
+      setSelected(prev => ({ ...prev, owner }));
+      loadFindings();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAddComment = async (e) => {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+    try {
+      const res = await api.post(`/findings/${selected.id}/comments`, { content: newComment });
+      setComments(prev => [...prev, res.data.data]);
+      setNewComment('');
+      setSelected(prev => ({ ...prev, comments_count: (prev.comments_count || 0) + 1 }));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleRemediate = async () => {
     if (!selected?.id) return;
     setRemediating(true);
     try {
-      const res = await axios.post(`${API_BASE}/findings/remediate`, {
+      const res = await api.post(`/findings/remediate`, {
         finding_id: selected.id,
-        org_id: ORG_ID,
       });
 
       setTicket({
@@ -276,6 +314,38 @@ export default function Findings() {
                 ))}
               </div>
 
+              {/* MVP-2 Extended Fields Stubs */}
+              <div className="grid grid-cols-2 gap-4 mt-4 bg-gray-800/50 p-4 rounded-xl border border-gray-800">
+                <div className="space-y-1">
+                  <div className="text-xs text-gray-500 flex items-center gap-1"><User className="w-3 h-3" /> Assignee</div>
+                  <input 
+                    type="text" 
+                    value={selected.owner || ''} 
+                    onChange={(e) => handleAssign(e.target.value)}
+                    onBlur={(e) => handleAssign(e.target.value)}
+                    placeholder="Unassigned"
+                    className="bg-transparent border-b border-gray-700 text-sm text-white focus:outline-none focus:border-blue-500 w-full"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <div className="text-xs text-gray-500 flex items-center gap-1"><Activity className="w-3 h-3" /> Status</div>
+                  <select 
+                    value={selected.status || 'open'}
+                    onChange={(e) => handleUpdateStatus(e.target.value)}
+                    className="bg-gray-900 border border-gray-700 rounded text-sm text-white focus:outline-none w-full p-1"
+                  >
+                    <option value="open">Open</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="resolved">Resolved</option>
+                    <option value="ignored">Ignored</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-xs text-gray-500 flex items-center gap-1"><Clock className="w-3 h-3" /> Resolved At</div>
+                  <div className="text-sm text-gray-300">{selected.resolved_at ? new Date(selected.resolved_at).toLocaleString() : 'N/A'}</div>
+                </div>
+              </div>
+
               {/* Jira already linked badge */}
               {alreadyLinked && !ticket && (
                 <div className="mt-3 inline-flex items-center gap-2 bg-blue-900/20 border border-blue-600/40 text-blue-300 px-3 py-2 rounded-lg text-sm">
@@ -383,6 +453,42 @@ export default function Findings() {
                   )}
                 </button>
               )}
+            </div>
+            {/* Comments Section */}
+            <div className="mt-8 border-t border-gray-800 pt-6">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2 mb-4">
+                <MessageSquare className="w-5 h-5 text-gray-400" />
+                Comments & Timeline ({comments.length})
+              </h3>
+              
+              <div className="space-y-4 mb-4">
+                {comments.map(c => (
+                  <div key={c.id} className="bg-gray-800/50 p-3 rounded-lg border border-gray-800">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-sm font-semibold text-blue-400">{c.author_name}</span>
+                      <span className="text-xs text-gray-500">{new Date(c.created_at).toLocaleString()}</span>
+                    </div>
+                    <p className="text-sm text-gray-300">{c.content}</p>
+                  </div>
+                ))}
+              </div>
+
+              <form onSubmit={handleAddComment} className="flex gap-2">
+                <input
+                  type="text"
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder="Add a comment..."
+                  className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                />
+                <button
+                  type="submit"
+                  disabled={!newComment.trim()}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition"
+                >
+                  Post
+                </button>
+              </form>
             </div>
           </div>
         )}

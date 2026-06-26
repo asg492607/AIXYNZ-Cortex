@@ -1,6 +1,7 @@
-from typing import Optional
+from typing import Optional, Dict
+from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
 from services.firebase_client import (
@@ -11,6 +12,10 @@ from services.firebase_client import (
 from services.groq_client import analyze_finding
 from services.scan_service import run_full_scan
 from services.remediation_service import remediate_finding
+from services.auth_service import get_current_user
+from services.rbac import require_role
+from services.finding_service import update_finding_status, assign_owner, set_due_date, add_comment, get_comments
+from services.audit_service import log_audit_event
 
 router = APIRouter()
 
@@ -19,14 +24,12 @@ SEVERITY_ORDER = {"Critical": 4, "High": 3, "Medium": 2, "Low": 1}
 
 class AnalyzeFindingRequest(BaseModel):
     finding_id: str
-    org_id: Optional[str] = DEFAULT_ORG_ID
 
 class RemediateFindingRequest(BaseModel):
     finding_id: str
-    org_id: Optional[str] = DEFAULT_ORG_ID
 
 class RescanRequest(BaseModel):
-    org_id: str = DEFAULT_ORG_ID
+    pass
 
 def sort_findings(findings: list[dict]) -> list[dict]:
     return sorted(
@@ -39,35 +42,54 @@ def sort_findings(findings: list[dict]) -> list[dict]:
     )
 
 @router.post("/scan/rescan")
-async def rescan_environment(payload: RescanRequest):
+async def rescan_environment(
+    payload: RescanRequest,
+    current_user: Dict = Depends(require_role("analyst"))
+):
     """
     Explicit rescan endpoint for frontend 'Rescan' button / future scheduled scans.
     """
-    scan_result = run_full_scan(payload.org_id)
+    scan_result = run_full_scan(current_user["org_id"])
     return scan_result
 
 @router.get("/dashboard/summary")
-async def get_dashboard_summary(org_id: str = DEFAULT_ORG_ID):
+async def get_dashboard_summary(current_user: Dict = Depends(get_current_user)):
+    org_id = current_user["org_id"]
     findings = get_findings(org_id)
 
     if not findings and get_runtime_mode() == "demo":
         run_full_scan(org_id)
         findings = get_findings(org_id)
 
-    ranked = sort_findings(findings)
+    # Compute MTTR and trends
+    resolved_findings = [f for f in findings if f.get("status") == "resolved" and f.get("resolved_at") and f.get("detected_at")]
+    mttr_days = 0
+    if resolved_findings:
+        total_seconds = sum((datetime.fromisoformat(f["resolved_at"].replace("Z", "+00:00")) - datetime.fromisoformat(f["detected_at"].replace("Z", "+00:00"))).total_seconds() for f in resolved_findings)
+        mttr_days = round((total_seconds / len(resolved_findings)) / 86400, 1)
+
+    assets_count = {}
+    for f in findings:
+        asset_name = f.get("asset", {}).get("asset_name") or f.get("asset", {}).get("external_asset_id") or "Unknown"
+        assets_count[asset_name] = assets_count.get(asset_name, 0) + 1
+    
+    top_assets = [{"name": k, "count": v} for k, v in sorted(assets_count.items(), key=lambda item: item[1], reverse=True)[:5]]
 
     return {
         "mode": get_runtime_mode(),
         "org_id": org_id,
         "findings_count": len(findings),
-        "posture_score": max(0, 100 - len(findings) * 5),
-        "critical_risks_count": len([f for f in findings if f.get("severity") == "Critical"]),
-        "high_risks_count": len([f for f in findings if f.get("severity") == "High"]),
-        "top_findings": ranked[:5],
+        "critical_risks_count": len([f for f in findings if f.get("severity") == "Critical" and f.get("status") != "resolved"]),
+        "high_risks_count": len([f for f in findings if f.get("severity") == "High" and f.get("status") != "resolved"]),
+        "posture_score": max(0, 100 - (len([f for f in findings if f.get("severity") == "Critical" and f.get("status") != "resolved"]) * 10) - (len([f for f in findings if f.get("severity") == "High" and f.get("status") != "resolved"]) * 5)),
+        "top_findings": sort_findings([f for f in findings if f.get("status") != "resolved"])[:5],
+        "mttr_days": mttr_days,
+        "top_assets": top_assets,
     }
 
 @router.get("/findings")
-async def list_findings(org_id: str = DEFAULT_ORG_ID):
+async def list_findings(current_user: Dict = Depends(get_current_user)):
+    org_id = current_user["org_id"]
     findings = sort_findings(get_findings(org_id))
     return {
         "mode": get_runtime_mode(),
@@ -77,8 +99,12 @@ async def list_findings(org_id: str = DEFAULT_ORG_ID):
     }
 
 @router.post("/findings/analyze")
-async def ai_analyze_finding(request: AnalyzeFindingRequest):
-    finding = get_finding_by_id(request.finding_id, request.org_id)
+async def ai_analyze_finding(
+    request: AnalyzeFindingRequest,
+    current_user: Dict = Depends(require_role("analyst"))
+):
+    org_id = current_user["org_id"]
+    finding = get_finding_by_id(request.finding_id, org_id)
     if not finding:
         raise HTTPException(status_code=404, detail="Finding not found")
 
@@ -95,27 +121,88 @@ async def ai_analyze_finding(request: AnalyzeFindingRequest):
 
     return {
         "mode": get_runtime_mode(),
-        "org_id": request.org_id,
+        "org_id": org_id,
         "finding_id": request.finding_id,
         "analysis": analysis,
     }
 
 @router.post("/findings/remediate")
-async def api_remediate_finding(request: RemediateFindingRequest):
+async def api_remediate_finding(
+    request: RemediateFindingRequest,
+    current_user: Dict = Depends(require_role("analyst"))
+):
+    org_id = current_user["org_id"]
     try:
-        result = remediate_finding(request.org_id, request.finding_id)
+        result = remediate_finding(org_id, request.finding_id)
         
         # Flat response structure
         return {
             "mode": get_runtime_mode(),
-            "org_id": request.org_id,
+            "org_id": org_id,
             "finding_id": request.finding_id,
             "status": result.get("status") or "success",
             "ticket_id": result.get("ticket_id") or (result.get("ticket", {}).get("ticket_id") if isinstance(result.get("ticket"), dict) else None) or result.get("id"),
-            "ticket_url": result.get("ticket_url") or (result.get("ticket", {}).get("ticket_url") if isinstance(result.get("ticket"), dict) else None) or result.get("url"),
-            "analysis": result.get("analysis")
+            "ticket_url": result.get("ticket_url") or (result.get("ticket", {}).get("ticket_url") if isinstance(result.get("ticket"), dict) else None),
+            "analysis": result.get("analysis"),
         }
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+class UpdateStatusRequest(BaseModel):
+    status: str
+    ignored_reason: Optional[str] = None
+
+class AssignOwnerRequest(BaseModel):
+    owner: str
+
+class AddCommentRequest(BaseModel):
+    content: str
+
+@router.patch("/findings/{finding_id}/status")
+async def api_update_finding_status(
+    finding_id: str,
+    request: UpdateStatusRequest,
+    current_user: Dict = Depends(require_role("analyst"))
+):
+    if request.status not in ["open", "in_progress", "resolved", "ignored"]:
+        raise HTTPException(status_code=400, detail="Invalid status")
+        
+    success = update_finding_status(current_user["org_id"], finding_id, request.status, request.ignored_reason, current_user["name"])
+    if not success:
+        raise HTTPException(status_code=404, detail="Finding not found")
+        
+    log_audit_event(current_user["org_id"], current_user["user_id"], "update_finding_status", finding_id, {"status": request.status})
+    return {"success": True}
+
+@router.patch("/findings/{finding_id}/assign")
+async def api_assign_owner(
+    finding_id: str,
+    request: AssignOwnerRequest,
+    current_user: Dict = Depends(require_role("analyst"))
+):
+    success = assign_owner(current_user["org_id"], finding_id, request.owner, current_user["name"])
+    if not success:
+        raise HTTPException(status_code=404, detail="Finding not found")
+        
+    log_audit_event(current_user["org_id"], current_user["user_id"], "assign_finding", finding_id, {"owner": request.owner})
+    return {"success": True}
+
+@router.get("/findings/{finding_id}/comments")
+async def api_get_comments(
+    finding_id: str,
+    current_user: Dict = Depends(get_current_user)
+):
+    comments = get_comments(current_user["org_id"], finding_id)
+    return {"success": True, "data": comments}
+
+@router.post("/findings/{finding_id}/comments")
+async def api_add_comment(
+    finding_id: str,
+    request: AddCommentRequest,
+    current_user: Dict = Depends(require_role("analyst"))
+):
+    comment = add_comment(current_user["org_id"], finding_id, current_user["user_id"], current_user["name"], request.content)
+    log_audit_event(current_user["org_id"], current_user["user_id"], "add_comment", finding_id)
+    return {"success": True, "data": comment}

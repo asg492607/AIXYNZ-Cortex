@@ -1,22 +1,24 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
-import { Loader2, AlertTriangle, Activity, RefreshCcw, ShieldAlert, Layers } from 'lucide-react';
+import { Loader2, AlertTriangle, Activity, RefreshCcw, ShieldAlert, Layers, User, Building, Clock, Server } from 'lucide-react';
 
-import { API_BASE, ORG_ID } from '../lib/config';
+import api from '../lib/api';
+import { useAuth } from '../context/AuthContext';
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [rescanning, setRescanning] = useState(false);
-  const [error, setError] = useState(null);
+  const [org, setOrg] = useState(null);
+  const { user } = useAuth();
 
   const loadSummary = async () => {
     try {
       setError(null);
-      const res = await axios.get(`${API_BASE}/dashboard/summary`, {
-        params: { org_id: ORG_ID },
-      });
+      const res = await api.get(`/dashboard/summary`);
       setData(res.data);
+      
+      const orgRes = await api.get('/organizations/current');
+      setOrg(orgRes.data.data);
     } catch (err) {
       console.error(err);
       setError('Failed to load dashboard summary.');
@@ -32,7 +34,7 @@ export default function Dashboard() {
   const handleRescan = async () => {
     try {
       setRescanning(true);
-      const res = await axios.post(`${API_BASE}/scan/rescan`, { org_id: ORG_ID });
+      const res = await api.post(`/scan/rescan`, {});
       // Prefer freshly returned findings payload; fall back to re-fetching summary
       if (res.data?.findings) {
         await loadSummary();
@@ -77,6 +79,16 @@ export default function Dashboard() {
         <div>
           <h1 className="text-3xl font-bold text-white">Command Center</h1>
           <p className="text-gray-400 mt-1">Top risks across GitHub, AWS, and remediation workflows.</p>
+          {user && org && (
+            <div className="flex gap-4 mt-4 text-sm font-medium">
+              <span className="flex items-center gap-1 text-emerald-400 bg-emerald-900/20 px-2 py-1 rounded border border-emerald-900/50">
+                <Building className="w-4 h-4" /> {org.name} <span className="text-gray-500 uppercase text-xs ml-1">({org.plan})</span>
+              </span>
+              <span className="flex items-center gap-1 text-blue-400 bg-blue-900/20 px-2 py-1 rounded border border-blue-900/50">
+                <User className="w-4 h-4" /> {user.name} <span className="text-gray-500 uppercase text-xs ml-1">({user.role})</span>
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -117,8 +129,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Stat cards — 4 columns */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Stat cards — 5 columns */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
         <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
           <div className="flex items-center gap-3 mb-3">
             <ShieldAlert className="w-5 h-5 text-blue-400" />
@@ -150,10 +162,19 @@ export default function Dashboard() {
           </div>
           <p className="text-4xl font-bold text-purple-400">{data?.findings_count ?? 0}</p>
         </div>
+
+        <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
+          <div className="flex items-center gap-3 mb-3">
+            <Clock className="w-5 h-5 text-teal-400" />
+            <h2 className="text-sm text-gray-400 uppercase tracking-wider font-bold">Avg MTTR</h2>
+          </div>
+          <p className="text-4xl font-bold text-teal-400">{data?.mttr_days ?? 0}<span className="text-lg text-gray-500 ml-1">days</span></p>
+        </div>
       </div>
 
-      {/* Top findings table */}
-      <div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Top findings table */}
+        <div className="lg:col-span-2">
         <h2 className="text-xl font-bold text-white mb-4">Top Priority Risks</h2>
         <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
           {topFindings.length === 0 ? (
@@ -187,6 +208,29 @@ export default function Dashboard() {
               );
             })
           )}
+        </div>
+        </div>
+
+        {/* Top Assets */}
+        <div>
+          <h2 className="text-xl font-bold text-white mb-4">Top Risky Assets</h2>
+          <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden divide-y divide-gray-700">
+            {data?.top_assets?.length === 0 ? (
+               <div className="p-6 text-gray-400 text-sm">No assets with findings.</div>
+            ) : (
+               data?.top_assets?.map(asset => (
+                 <div key={asset.name} className="p-4 flex items-center justify-between hover:bg-gray-700/30 transition">
+                   <div className="flex items-center gap-3 min-w-0">
+                     <Server className="w-5 h-5 text-gray-400 shrink-0" />
+                     <p className="text-sm text-white font-medium truncate">{asset.name}</p>
+                   </div>
+                   <span className="text-xs font-bold text-gray-400 bg-gray-900 px-2 py-1 rounded shrink-0">
+                     {asset.count} findings
+                   </span>
+                 </div>
+               ))
+            )}
+          </div>
         </div>
       </div>
     </div>
