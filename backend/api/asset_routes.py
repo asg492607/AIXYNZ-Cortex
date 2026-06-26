@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from typing import Dict, List
+from typing import Dict, List, Optional
 from pydantic import BaseModel
 from services.auth_service import get_current_user
 from services.rbac import require_role
@@ -13,10 +13,20 @@ class AssetUpdateModel(BaseModel):
     business_tags: List[str] = None
 
 @router.get("/assets")
-async def list_assets(current_user: Dict = Depends(get_current_user)):
+async def list_assets(
+    current_user: Dict = Depends(get_current_user),
+    page: int = 1,
+    limit: int = 50,
+    provider: Optional[str] = None,
+):
     org_id = current_user["org_id"]
     assets = get_assets(org_id)
-    return {"success": True, "data": assets}
+    if provider:
+        assets = [a for a in assets if a.get("provider", "").lower() == provider.lower()]
+    total = len(assets)
+    start = (page - 1) * limit
+    paginated = assets[start: start + limit]
+    return {"success": True, "total": total, "page": page, "limit": limit, "data": paginated}
 
 @router.get("/assets/{asset_id}")
 async def get_asset(asset_id: str, current_user: Dict = Depends(get_current_user)):

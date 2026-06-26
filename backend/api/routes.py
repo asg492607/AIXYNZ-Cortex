@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Literal
+from typing import Optional, Dict, Literal, List
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Depends
@@ -88,14 +88,37 @@ async def get_dashboard_summary(current_user: Dict = Depends(get_current_user)):
     }
 
 @router.get("/findings")
-async def list_findings(current_user: Dict = Depends(get_current_user)):
+async def list_findings(
+    current_user: Dict = Depends(get_current_user),
+    page: int = 1,
+    limit: int = 50,
+    severity: Optional[str] = None,
+    status: Optional[str] = None,
+    source: Optional[str] = None,
+):
     org_id = current_user["org_id"]
     findings = sort_findings(get_findings(org_id))
+
+    # Server-side filtering
+    if severity:
+        findings = [f for f in findings if f.get("severity", "").lower() == severity.lower()]
+    if status:
+        findings = [f for f in findings if f.get("status", "").lower() == status.lower()]
+    if source:
+        findings = [f for f in findings if f.get("source", "").lower() == source.lower()]
+
+    total = len(findings)
+    start = (page - 1) * limit
+    paginated = findings[start: start + limit]
+
     return {
         "mode": get_runtime_mode(),
         "org_id": org_id,
-        "findings_count": len(findings),
-        "findings": findings,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "findings_count": len(paginated),
+        "findings": paginated,
     }
 
 @router.post("/findings/analyze")
@@ -207,3 +230,56 @@ async def api_add_comment(
     comment = add_comment(current_user["org_id"], finding_id, current_user["user_id"], current_user["name"], request.content)
     log_audit_event(current_user["org_id"], current_user["user_id"], "add_comment", finding_id)
     return {"success": True, "data": comment}
+
+
+@router.get("/metrics")
+async def get_metrics(current_user: Dict = Depends(get_current_user)):
+    """
+    Aggregated platform metrics: finding counts, scan history, MTTR, severity breakdown.
+    Sourced from scan_logs and findings without re-running a scan.
+    """
+    from services.firebase_client import _mock_db, get_db
+    org_id = current_user["org_id"]
+    findings = get_findings(org_id)
+
+    # Severity breakdown
+    severity_breakdown = {}
+    status_breakdown = {}
+    for f in findings:
+        sev = f.get("severity", "Unknown")
+        sta = f.get("status", "open")
+        severity_breakdown[sev] = severity_breakdown.get(sev, 0) + 1
+        status_breakdown[sta] = status_breakdown.get(sta, 0) + 1
+
+    # MTTR
+    resolved = [f for f in findings if f.get("status") == "resolved" and f.get("resolved_at") and f.get("detected_at")]
+    mttr_days = 0.0
+    if resolved:
+        total_secs = sum(
+            (datetime.fromisoformat(f["resolved_at"].replace("Z", "+00:00")) -
+             datetime.fromisoformat(f["detected_at"].replace("Z", "+00:00"))).total_seconds()
+            for f in resolved
+        )
+        mttr_days = round((total_secs / len(resolved)) / 86400, 1)
+
+    # Scan history (last 10)
+    if get_runtime_mode() == "demo":
+        scan_logs = sorted(
+            [s for s in _mock_db.get("scan_logs", []) if s.get("org_id") == org_id],
+            key=lambda x: x.get("timestamp", ""), reverse=True
+        )[:10]
+    else:
+        db = get_db()
+        scan_logs = []
+        if db:
+            docs = db.collection("scan_logs").where("org_id", "==", org_id).order_by("timestamp", direction="DESCENDING").limit(10).stream()
+            scan_logs = [doc.to_dict() for doc in docs]
+
+    return {
+        "org_id": org_id,
+        "total_findings": len(findings),
+        "severity_breakdown": severity_breakdown,
+        "status_breakdown": status_breakdown,
+        "mttr_days": mttr_days,
+        "recent_scans": scan_logs,
+    }
