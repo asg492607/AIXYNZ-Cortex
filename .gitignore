@@ -11,6 +11,9 @@ venv/
 env/
 ENV/
 .env
+frontend/.env
+frontend/.env.local
+frontend/.env.production
 *.egg-info/
 dist/
 build/
