@@ -95,6 +95,7 @@ async def list_findings(
     severity: Optional[str] = None,
     status: Optional[str] = None,
     source: Optional[str] = None,
+    asset_id: Optional[str] = None,
 ):
     org_id = current_user["org_id"]
     findings = sort_findings(get_findings(org_id))
@@ -106,6 +107,8 @@ async def list_findings(
         findings = [f for f in findings if f.get("status", "").lower() == status.lower()]
     if source:
         findings = [f for f in findings if f.get("source", "").lower() == source.lower()]
+    if asset_id:
+        findings = [f for f in findings if f.get("asset_id") == asset_id or f.get("asset", {}).get("external_asset_id") == asset_id]
 
     total = len(findings)
     start = (page - 1) * limit

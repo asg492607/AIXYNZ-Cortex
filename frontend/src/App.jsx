@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { Shield, LayoutDashboard, AlertCircle, Settings2 } from 'lucide-react';
+import { Shield, LayoutDashboard, AlertCircle, Settings2, Database, ShieldCheck, Download, GitBranch, MessageSquare, Zap } from 'lucide-react';
 
 import Dashboard from './pages/Dashboard';
 import Findings from './pages/Findings';
@@ -10,16 +10,24 @@ import Register from './pages/Register';
 import Profile from './pages/Profile';
 import AuditLogs from './pages/AuditLogs';
 import AssetInventory from './pages/AssetInventory';
+import AssetDetails from './pages/AssetDetails';
+import ApiKeys from './pages/ApiKeys';
 import Compliance from './pages/Compliance';
+import ComplianceDetails from './pages/ComplianceDetails';
 import Reports from './pages/Reports';
+import Workflows from './pages/Workflows';
+import AttackGraph from './pages/AttackGraph';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', Icon: LayoutDashboard },
   { path: '/assets', label: 'Asset Inventory', Icon: Database },
   { path: '/findings', label: 'Risk Queue', Icon: AlertCircle },
+  { path: '/attack-graph', label: 'Attack Graph', Icon: GitBranch },
   { path: '/compliance', label: 'Compliance', Icon: ShieldCheck },
-  { path: '/reports', label: 'Reports', Icon: Download },
+  { path: '/workflows', label: 'Workflows', Icon: Zap },
+  { path: '/reports', label: 'Reporting', Icon: Download },
+  { path: '/api-keys', label: 'API Keys', Icon: Settings2 },
   { path: '/integrations', label: 'Integrations', Icon: Settings2 },
   { path: '/audit-logs', label: 'Audit Trail', Icon: Settings2 },
 ];
@@ -68,7 +76,7 @@ function Sidebar() {
           <Settings2 className="w-4 h-4 shrink-0" />
           Profile
         </Link>
-        <p className="text-xs text-gray-600 text-center mt-4">Cortex MVP-2</p>
+        <p className="text-xs text-gray-600 text-center mt-4">Cortex MVP-3</p>
       </div>
     </div>
   );
@@ -107,9 +115,14 @@ export default function App() {
           
           <Route path="/" element={<ProtectedRoute><MainLayout><Dashboard /></MainLayout></ProtectedRoute>} />
           <Route path="/assets" element={<ProtectedRoute><MainLayout><AssetInventory /></MainLayout></ProtectedRoute>} />
+          <Route path="/assets/:id" element={<ProtectedRoute><MainLayout><AssetDetails /></MainLayout></ProtectedRoute>} />
           <Route path="/findings" element={<ProtectedRoute><MainLayout><Findings /></MainLayout></ProtectedRoute>} />
+          <Route path="/attack-graph" element={<ProtectedRoute><MainLayout><AttackGraph /></MainLayout></ProtectedRoute>} />
           <Route path="/compliance" element={<ProtectedRoute><MainLayout><Compliance /></MainLayout></ProtectedRoute>} />
+          <Route path="/compliance/:framework" element={<ProtectedRoute><MainLayout><ComplianceDetails /></MainLayout></ProtectedRoute>} />
+          <Route path="/workflows" element={<ProtectedRoute><MainLayout><Workflows /></MainLayout></ProtectedRoute>} />
           <Route path="/reports" element={<ProtectedRoute><MainLayout><Reports /></MainLayout></ProtectedRoute>} />
+          <Route path="/api-keys" element={<ProtectedRoute><MainLayout><ApiKeys /></MainLayout></ProtectedRoute>} />
           <Route path="/integrations" element={<ProtectedRoute><MainLayout><Integrations /></MainLayout></ProtectedRoute>} />
           <Route path="/audit-logs" element={<ProtectedRoute><MainLayout><AuditLogs /></MainLayout></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><MainLayout><Profile /></MainLayout></ProtectedRoute>} />

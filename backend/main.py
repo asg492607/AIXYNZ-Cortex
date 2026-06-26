@@ -3,6 +3,7 @@ import logging.config
 import os
 import time
 import uuid
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,6 +20,9 @@ from api.reporting_routes import router as reporting_router
 from api.health_routes import router as health_router
 from api.webhook_routes import router as webhook_router
 from api.copilot_routes import router as copilot_router
+from api.graph_routes import router as graph_router
+from api.workflow_routes import router as workflow_router
+from api.api_key_routes import router as api_key_router
 from services.scheduler import start_scheduler
 
 # ── Structured Logging ──────────────────────────────────────────────────────
@@ -30,11 +34,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger("cortex.api")
 
+# ── Lifecycle ────────────────────────────────────────────────────────────────
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Cortex API starting up...")
+    start_scheduler()
+    logger.info("Scheduler started.")
+    yield
+    logger.info("Cortex API shutting down...")
+
 # ── App ──────────────────────────────────────────────────────────────────────
 app = FastAPI(
     title="AIXYNZ Cortex API",
     version="0.4.0",
     description="Asset-centric Security Operations Platform",
+    lifespan=lifespan,
 )
 
 frontend_origin = os.environ.get("FRONTEND_ORIGIN", "http://localhost:5173")
@@ -75,10 +89,6 @@ app.include_router(reporting_router,   prefix="/api/v1")
 app.include_router(api_router,         prefix="/api/v1")
 app.include_router(webhook_router,     prefix="/api/v1")
 app.include_router(copilot_router,     prefix="/api/v1")
-
-# ── Lifecycle ────────────────────────────────────────────────────────────────
-@app.on_event("startup")
-async def startup_event():
-    logger.info("Cortex API starting up...")
-    start_scheduler()
-    logger.info("Scheduler started.")
+app.include_router(graph_router,       prefix="/api/v1")
+app.include_router(workflow_router,    prefix="/api/v1")
+app.include_router(api_key_router,     prefix="/api/v1", tags=["api_keys"])

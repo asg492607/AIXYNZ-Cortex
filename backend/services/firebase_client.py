@@ -20,6 +20,8 @@ _mock_db = {
     "scan_logs": [],
     "audit_logs": [],
     "chat_threads": [],
+    "workflows": [],
+    "api_keys": [],
 }
 
 def init_firebase():
@@ -34,12 +36,20 @@ def init_firebase():
             _db = None
 
     try:
-        if os.path.exists("serviceAccountKey.json"):
+        if "FIREBASE_CREDENTIALS" in os.environ:
+            import json
+            cred_dict = json.loads(os.environ["FIREBASE_CREDENTIALS"])
+            cred = credentials.Certificate(cred_dict)
+            firebase_admin.initialize_app(cred)
+            _db = firestore.client()
+            _runtime_mode = "live"
+            print("Firebase initialized from FIREBASE_CREDENTIALS env var.")
+        elif os.path.exists("serviceAccountKey.json"):
             cred = credentials.Certificate("serviceAccountKey.json")
             firebase_admin.initialize_app(cred)
             _db = firestore.client()
             _runtime_mode = "live"
-            print("Firebase initialized successfully.")
+            print("Firebase initialized successfully from serviceAccountKey.json.")
         else:
             _runtime_mode = "demo"
             print("serviceAccountKey.json not found. Running in DEMO mode.")
@@ -60,7 +70,8 @@ def get_runtime_mode() -> str:
     return _runtime_mode
 
 def utc_now() -> str:
-    return datetime.datetime.utcnow().isoformat() + "Z"
+    # Use timezone-aware UTC datetime for compatibility and correctness
+    return datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
 
 def format_finding(f: dict) -> dict:
     now = utc_now()
@@ -175,6 +186,120 @@ def get_findings(org_id: str = "demo-org") -> List[dict]:
 
     docs = db.collection("findings").where("org_id", "==", org_id).stream()
     return [doc.to_dict() for doc in docs]
+
+# --- Workflows ---
+def get_workflows(org_id: str) -> List[Dict]:
+    if get_runtime_mode() == "demo":
+        return [w for w in _mock_db.get("workflows", []) if w.get("org_id") == org_id]
+        
+    db = get_db()
+    if db:
+        docs = db.collection("workflows").where("org_id", "==", org_id).stream()
+        return [doc.to_dict() for doc in docs]
+    return []
+
+def upsert_workflow(org_id: str, workflow_data: Dict) -> str:
+    wid = workflow_data.get("id")
+    if not wid:
+        wid = f"wf_{uuid.uuid4().hex[:8]}"
+        workflow_data["id"] = wid
+        
+    workflow_data["org_id"] = org_id
+    workflow_data["updated_at"] = utc_now()
+    if "created_at" not in workflow_data:
+        workflow_data["created_at"] = workflow_data["updated_at"]
+        
+    if get_runtime_mode() == "demo":
+        for i, w in enumerate(_mock_db.setdefault("workflows", [])):
+            if w.get("id") == wid and w.get("org_id") == org_id:
+                _mock_db["workflows"][i] = workflow_data
+                return wid
+        _mock_db["workflows"].append(workflow_data)
+        return wid
+        
+    db = get_db()
+    if db:
+        db.collection("workflows").document(wid).set(workflow_data)
+    return wid
+
+def delete_workflow(org_id: str, workflow_id: str) -> bool:
+    if get_runtime_mode() == "demo":
+        workflows = _mock_db.get("workflows", [])
+        for i, w in enumerate(workflows):
+            if w.get("id") == workflow_id and w.get("org_id") == org_id:
+                workflows.pop(i)
+                return True
+        return False
+        
+    db = get_db()
+    if db:
+        doc_ref = db.collection("workflows").document(workflow_id)
+        doc = doc_ref.get()
+        if doc.exists and doc.to_dict().get("org_id") == org_id:
+            doc_ref.delete()
+            return True
+    return False
+
+# --- API Keys ---
+def get_api_keys(org_id: str) -> List[Dict]:
+    if get_runtime_mode() == "demo":
+        return [k for k in _mock_db.get("api_keys", []) if k.get("org_id") == org_id]
+        
+    db = get_db()
+    if db:
+        docs = db.collection("api_keys").where("org_id", "==", org_id).stream()
+        return [doc.to_dict() for doc in docs]
+    return []
+
+def get_api_key_by_hash(key_hash: str) -> Optional[Dict]:
+    if get_runtime_mode() == "demo":
+        for k in _mock_db.get("api_keys", []):
+            if k.get("key_hash") == key_hash:
+                return k
+        return None
+        
+    db = get_db()
+    if db:
+        docs = db.collection("api_keys").where("key_hash", "==", key_hash).limit(1).stream()
+        for doc in docs:
+            return doc.to_dict()
+    return None
+
+def upsert_api_key(org_id: str, key_data: Dict) -> str:
+    kid = key_data.get("id")
+    if not kid:
+        kid = f"key_{uuid.uuid4().hex[:8]}"
+        key_data["id"] = kid
+        
+    key_data["org_id"] = org_id
+    key_data["created_at"] = utc_now()
+        
+    if get_runtime_mode() == "demo":
+        _mock_db.setdefault("api_keys", []).append(key_data)
+        return kid
+        
+    db = get_db()
+    if db:
+        db.collection("api_keys").document(kid).set(key_data)
+    return kid
+
+def delete_api_key(org_id: str, key_id: str) -> bool:
+    if get_runtime_mode() == "demo":
+        keys = _mock_db.get("api_keys", [])
+        for i, k in enumerate(keys):
+            if k.get("id") == key_id and k.get("org_id") == org_id:
+                keys.pop(i)
+                return True
+        return False
+        
+    db = get_db()
+    if db:
+        doc_ref = db.collection("api_keys").document(key_id)
+        doc = doc_ref.get()
+        if doc.exists and doc.to_dict().get("org_id") == org_id:
+            doc_ref.delete()
+            return True
+    return False
 
 def get_finding_by_id(finding_id: str, org_id: str = "demo-org") -> Optional[dict]:
     findings = get_findings(org_id)

@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, CheckCircle2, XCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ShieldCheck, CheckCircle2, XCircle, ChevronRight } from 'lucide-react';
 import api from '../lib/api';
 
 export default function Compliance() {
+  const navigate = useNavigate();
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -38,10 +40,14 @@ export default function Compliance() {
           const isFailing = data.open_findings > 0;
           
           return (
-            <div key={framework} className="bg-gray-800 border border-gray-700 p-6 rounded-xl relative overflow-hidden">
+            <div 
+              key={framework} 
+              onClick={() => navigate(`/compliance/${framework}`)}
+              className="bg-gray-800 border border-gray-700 p-6 rounded-xl relative overflow-hidden cursor-pointer hover:bg-gray-750 transition group"
+            >
               <div className={`absolute top-0 left-0 w-1 h-full ${isFailing ? 'bg-red-500' : 'bg-emerald-500'}`} />
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-bold text-white uppercase tracking-wider">{framework === 'cis' ? 'CIS Foundations' : framework === 'soc2' ? 'SOC 2 Type II' : 'ISO 27001'}</h3>
+                <h3 className="text-xl font-bold text-white uppercase tracking-wider group-hover:text-indigo-400 transition">{framework === 'cis' ? 'CIS Foundations' : framework === 'soc2' ? 'SOC 2 Type II' : 'ISO 27001'}</h3>
                 {isFailing ? <XCircle className="w-6 h-6 text-red-500" /> : <CheckCircle2 className="w-6 h-6 text-emerald-500" />}
               </div>
               <div className="space-y-4">
@@ -55,6 +61,10 @@ export default function Compliance() {
                     {data.open_findings}
                   </span>
                 </div>
+              </div>
+              <div className="mt-6 pt-4 border-t border-gray-700 flex items-center justify-between text-sm text-gray-400 group-hover:text-white transition">
+                <span>View control breakdown</span>
+                <ChevronRight className="w-4 h-4 transform group-hover:translate-x-1 transition" />
               </div>
             </div>
           );

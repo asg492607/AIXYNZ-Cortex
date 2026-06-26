@@ -1,22 +1,44 @@
 import os
 from typing import Dict, Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import firebase_admin
 from firebase_admin import auth
+import hashlib
 
-from services.firebase_client import get_runtime_mode
+from services.firebase_client import get_runtime_mode, get_api_key_by_hash
 from services.user_service import get_user_by_id
 
 security = HTTPBearer(auto_error=False)
 
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Dict:
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    x_api_key: Optional[str] = Header(None)
+) -> Dict:
     """
     FastAPI dependency to verify Firebase token and return the authenticated user context.
     If in demo mode and no token is provided, returns a mock admin user.
     """
     mode = get_runtime_mode()
+
+    if x_api_key:
+        key_hash = hashlib.sha256(x_api_key.encode()).hexdigest()
+        key_record = get_api_key_by_hash(key_hash)
+        
+        if key_record:
+            return {
+                "user_id": f"api_key_{key_record['id']}",
+                "email": f"api-key-{key_record['id']}@aixynz.com",
+                "name": f"API Key: {key_record['name']}",
+                "org_id": key_record["org_id"],
+                "role": "admin"  # API Keys act as admin for now
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid API Key",
+            )
 
     if not credentials:
         if mode == "demo":

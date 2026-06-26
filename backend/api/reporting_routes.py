@@ -83,3 +83,50 @@ async def get_compliance_summary(current_user: Dict = Depends(get_current_user))
             if status in ["open", "in_progress"]: summary["iso27001"]["open_findings"] += 1
             
     return {"success": True, "data": summary}
+
+@router.get("/reports/compliance/{framework}")
+async def get_compliance_details(framework: str, current_user: Dict = Depends(get_current_user)):
+    org_id = current_user["org_id"]
+    findings = get_findings(org_id)
+    
+    # We will build a mapping: { "control_id": { "status": "fail", "findings": [...] } }
+    controls = {}
+    
+    for f in findings:
+        comp = f.get("compliance", {})
+        status = f.get("status", "open")
+        
+        # Check if the finding maps to this framework
+        framework_controls = comp.get(framework)
+        if not framework_controls:
+            continue
+            
+        # Ensure it is a list
+        if not isinstance(framework_controls, list):
+            framework_controls = [framework_controls]
+            
+        for control_id in framework_controls:
+            if control_id not in controls:
+                controls[control_id] = {
+                    "id": control_id,
+                    "status": "pass", # Default to pass, will mark fail if open finding found
+                    "findings": []
+                }
+            
+            # Add finding to this control
+            controls[control_id]["findings"].append({
+                "id": f.get("id"),
+                "title": f.get("title"),
+                "severity": f.get("severity"),
+                "status": status,
+                "asset_name": f.get("asset", {}).get("asset_name") or f.get("asset", {}).get("external_asset_id", "Unknown")
+            })
+            
+            # If finding is open/in_progress, the control is failing
+            if status in ["open", "in_progress"]:
+                controls[control_id]["status"] = "fail"
+                
+    # Convert mapping to list and sort by control ID
+    controls_list = sorted(list(controls.values()), key=lambda x: x["id"])
+    
+    return {"success": True, "framework": framework, "data": controls_list}
