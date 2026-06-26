@@ -116,20 +116,41 @@ if os.path.isdir(frontend_dist):
         with open(index_path, "r", encoding="utf-8") as f:
             html_content = f.read()
             
-        # Construct the Firebase config from backend environment variables
+        # Construct the Firebase config from backend environment variables (check with or without VITE_)
         firebase_config = {
-            "apiKey": os.environ.get("VITE_FIREBASE_API_KEY", ""),
-            "authDomain": os.environ.get("VITE_FIREBASE_AUTH_DOMAIN", ""),
-            "projectId": os.environ.get("VITE_FIREBASE_PROJECT_ID", ""),
-            "storageBucket": os.environ.get("VITE_FIREBASE_STORAGE_BUCKET", ""),
-            "messagingSenderId": os.environ.get("VITE_FIREBASE_MESSAGING_SENDER_ID", ""),
-            "appId": os.environ.get("VITE_FIREBASE_APP_ID", ""),
-            "measurementId": os.environ.get("VITE_FIREBASE_MEASUREMENT_ID", "")
+            "apiKey": os.environ.get("VITE_FIREBASE_API_KEY", os.environ.get("FIREBASE_API_KEY", "")),
+            "authDomain": os.environ.get("VITE_FIREBASE_AUTH_DOMAIN", os.environ.get("FIREBASE_AUTH_DOMAIN", "")),
+            "projectId": os.environ.get("VITE_FIREBASE_PROJECT_ID", os.environ.get("FIREBASE_PROJECT_ID", "")),
+            "storageBucket": os.environ.get("VITE_FIREBASE_STORAGE_BUCKET", os.environ.get("FIREBASE_STORAGE_BUCKET", "")),
+            "messagingSenderId": os.environ.get("VITE_FIREBASE_MESSAGING_SENDER_ID", os.environ.get("FIREBASE_MESSAGING_SENDER_ID", "")),
+            "appId": os.environ.get("VITE_FIREBASE_APP_ID", os.environ.get("FIREBASE_APP_ID", "")),
+            "measurementId": os.environ.get("VITE_FIREBASE_MEASUREMENT_ID", os.environ.get("FIREBASE_MEASUREMENT_ID", ""))
         }
         
         # Inject into the <head> of the HTML
         injection = f"<script>window.FIREBASE_CONFIG = {json.dumps(firebase_config)};</script>"
         html_content = html_content.replace("<head>", f"<head>{injection}")
+        
+        # If API key is completely missing in production (where VITE_ envs aren't compiled in), show a massive error overlay
+        if not firebase_config["apiKey"]:
+            error_overlay = """
+            <div style="position:fixed;top:0;left:0;right:0;bottom:0;background:#0f172a;color:white;z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:sans-serif;padding:40px;text-align:center;">
+                <h1 style="color:#ef4444;font-size:32px;margin-bottom:20px;">🚨 Missing Firebase Configuration</h1>
+                <p style="font-size:18px;max-width:600px;line-height:1.6;color:#cbd5e1;">
+                    Your Render deployment is missing the required Firebase environment variables.
+                </p>
+                <div style="background:#1e293b;padding:24px;border-radius:12px;text-align:left;margin-top:24px;border:1px solid #334155;">
+                    <p style="color:#fbbf24;font-weight:bold;margin-top:0;">Action Required:</p>
+                    <ol style="color:#e2e8f0;margin-bottom:0;">
+                        <li>Go to your Render Dashboard -> <b>cortex-platform</b></li>
+                        <li>Click the <b>Environment</b> tab</li>
+                        <li>Add <code>VITE_FIREBASE_API_KEY</code> and all other Firebase variables</li>
+                        <li>Restart the service or trigger a Manual Deploy</li>
+                    </ol>
+                </div>
+            </div>
+            """
+            html_content = html_content.replace("<body>", f"<body>{error_overlay}")
         
         return HTMLResponse(content=html_content)
 else:
