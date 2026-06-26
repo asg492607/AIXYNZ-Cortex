@@ -8,7 +8,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
+import json
 
 from api.routes import router as api_router
 from api.organization_routes import router as org_router
@@ -103,10 +104,33 @@ if os.path.isdir(frontend_dist):
     # Catch-all route to serve the React SPA for any non-API route
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
-        # Allow serving other files in dist like vite.svg, robots.txt, etc if they exist
         target_path = os.path.join(frontend_dist, full_path)
-        if os.path.isfile(target_path):
+        if os.path.isfile(target_path) and not full_path.endswith("index.html"):
             return FileResponse(target_path)
-        return FileResponse(os.path.join(frontend_dist, "index.html"))
+            
+        # For index.html, we inject the Firebase config dynamically at runtime
+        index_path = os.path.join(frontend_dist, "index.html")
+        if not os.path.isfile(index_path):
+            raise HTTPException(status_code=404, detail="Frontend not built")
+            
+        with open(index_path, "r", encoding="utf-8") as f:
+            html_content = f.read()
+            
+        # Construct the Firebase config from backend environment variables
+        firebase_config = {
+            "apiKey": os.environ.get("VITE_FIREBASE_API_KEY", ""),
+            "authDomain": os.environ.get("VITE_FIREBASE_AUTH_DOMAIN", ""),
+            "projectId": os.environ.get("VITE_FIREBASE_PROJECT_ID", ""),
+            "storageBucket": os.environ.get("VITE_FIREBASE_STORAGE_BUCKET", ""),
+            "messagingSenderId": os.environ.get("VITE_FIREBASE_MESSAGING_SENDER_ID", ""),
+            "appId": os.environ.get("VITE_FIREBASE_APP_ID", ""),
+            "measurementId": os.environ.get("VITE_FIREBASE_MEASUREMENT_ID", "")
+        }
+        
+        # Inject into the <head> of the HTML
+        injection = f"<script>window.FIREBASE_CONFIG = {json.dumps(firebase_config)};</script>"
+        html_content = html_content.replace("<head>", f"<head>{injection}")
+        
+        return HTMLResponse(content=html_content)
 else:
     logger.warning(f"Frontend dist directory not found at {frontend_dist}. Running API only.")
