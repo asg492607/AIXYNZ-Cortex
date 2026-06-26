@@ -67,6 +67,7 @@ export function AuthProvider({ children }) {
       }
     } catch (err) {
       console.error('Failed to sync user with Firestore:', err);
+      throw new Error("Database error: Make sure you have created a Firestore Database in the Firebase Console. (" + err.message + ")");
     }
   };
 
