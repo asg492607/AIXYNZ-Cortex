@@ -79,7 +79,7 @@ async def log_requests(request: Request, call_next):
     return response
 
 # ── Routers ──────────────────────────────────────────────────────────────────
-app.include_router(health_router)                            # /health, /health/deep (no prefix)
+app.include_router(health_router,      prefix="/api/v1")        # /api/v1/health
 app.include_router(org_router,         prefix="/api/v1")
 app.include_router(user_router,        prefix="/api/v1")
 app.include_router(integration_router, prefix="/api/v1")
@@ -104,6 +104,11 @@ if os.path.isdir(frontend_dist):
     # Catch-all route to serve the React SPA for any non-API route
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
+        # Never intercept API or docs routes — let FastAPI handle them
+        if full_path.startswith("api/") or full_path in ("docs", "redoc", "openapi.json"):
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Not found")
+        
         target_path = os.path.join(frontend_dist, full_path)
         if os.path.isfile(target_path) and not full_path.endswith("index.html"):
             return FileResponse(target_path)
