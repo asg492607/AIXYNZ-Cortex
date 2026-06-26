@@ -74,7 +74,18 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        await syncFirestoreUser(firebaseUser);
+        try {
+          await syncFirestoreUser(firebaseUser);
+        } catch (err) {
+          // Firestore might be temporarily offline — still set basic user from Firebase Auth
+          console.warn('Firestore sync failed, using Firebase Auth data only:', err.message);
+          setUser({
+            id: firebaseUser.uid,
+            email: firebaseUser.email,
+            name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+            role: 'admin',
+          });
+        }
       } else {
         setUser(null);
         setToken(null);

@@ -9,6 +9,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [rescanning, setRescanning] = useState(false);
   const [org, setOrg] = useState(null);
+  const [error, setError] = useState(null);
   const { user } = useAuth();
 
   const loadSummary = async () => {
@@ -188,7 +189,7 @@ export default function Dashboard() {
 
               return (
                 <div
-                  key={f.id}
+                  key={f.id || f.title}
                   className="p-4 border-b border-gray-700 last:border-0 flex justify-between items-center hover:bg-gray-700/30 transition"
                 >
                   <div className="flex items-center gap-4 min-w-0">
