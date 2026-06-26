@@ -1,4 +1,6 @@
 from datetime import datetime, timezone
+from services.firebase_client import utc_now
+from services.compliance_service import get_compliance_mappings
 
 def build_finding(
     *,
@@ -13,13 +15,17 @@ def build_finding(
     risk_score: int,
     external_finding_key: str,
     asset: dict,
+    asset_id: str | None = None,
     raw_data: dict | None = None,
     remediation: dict | None = None,
     integration_id: str | None = None,
-    confidence: str | None = None,
+    confidence: str | None = "high",
     scanner_metadata: dict | None = None,
 ) -> dict:
     now = datetime.now(timezone.utc).isoformat()
+
+    provider = asset.get("provider", source)
+    compliance_mappings = get_compliance_mappings(provider, finding_type)
 
     return {
         "org_id": org_id,
@@ -32,12 +38,14 @@ def build_finding(
         "severity": severity,
         "risk_score": risk_score,
         "status": "open",
-        "owner": None,
+        "owner": "unassigned",
         "due_date": None,
         "resolved_at": None,
         "ignored_reason": None,
         "external_finding_key": external_finding_key,
+        "asset_id": asset_id,
         "asset": asset,
+        "compliance": compliance_mappings,
         "raw_data": raw_data or {},
         "remediation": remediation or {},
         "integration_id": integration_id,

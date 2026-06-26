@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, Literal
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Depends
@@ -151,8 +151,9 @@ async def api_remediate_finding(
         raise HTTPException(status_code=500, detail=str(e))
 
 class UpdateStatusRequest(BaseModel):
-    status: str
+    status: Literal["open", "in_progress", "resolved", "ignored", "suppressed"]
     ignored_reason: Optional[str] = None
+    expires_at: Optional[str] = None
 
 class AssignOwnerRequest(BaseModel):
     owner: str
@@ -166,10 +167,10 @@ async def api_update_finding_status(
     request: UpdateStatusRequest,
     current_user: Dict = Depends(require_role("analyst"))
 ):
-    if request.status not in ["open", "in_progress", "resolved", "ignored"]:
+    if request.status not in ["open", "in_progress", "resolved", "ignored", "suppressed"]:
         raise HTTPException(status_code=400, detail="Invalid status")
         
-    success = update_finding_status(current_user["org_id"], finding_id, request.status, request.ignored_reason, current_user["name"])
+    success = update_finding_status(current_user["org_id"], finding_id, request.status, request.ignored_reason, request.expires_at, current_user["name"])
     if not success:
         raise HTTPException(status_code=404, detail="Finding not found")
         

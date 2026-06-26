@@ -2,6 +2,7 @@ from services.aws_scanner import scan_aws_environment
 from services.github_scanner import scan_github_repos # Note: using old name for now until next pass
 from services.firebase_client import get_runtime_mode, upsert_finding, get_findings, get_db, _mock_db, utc_now
 from services.notification_service import notify_new_finding
+from services.asset_service import upsert_asset, calculate_asset_risk_scores
 import uuid
 
 def log_scan_run(org_id: str, status: str, new_or_updated: int, error_message: str = None) -> dict:
@@ -34,12 +35,20 @@ def run_full_scan(org_id: str = "demo-org") -> dict:
         for finding in all_findings:
             if not finding.get("org_id"):
                 finding["org_id"] = org_id
+                
+            # Intercept and upsert asset
+            asset_data = finding.get("asset")
+            if asset_data:
+                asset_id = upsert_asset(org_id, asset_data)
+                finding["asset_id"] = asset_id
+                
             fid = upsert_finding(finding)
             saved_ids.append(fid)
             # Only notify if it's high severity (simplification for MVP)
             if finding.get("severity") in ["Critical", "High"]:
                 notify_new_finding(org_id, finding)
 
+        calculate_asset_risk_scores(org_id)
         findings = get_findings(org_id)
         
         log_scan_run(org_id, "success", len(saved_ids))

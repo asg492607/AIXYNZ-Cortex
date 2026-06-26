@@ -9,11 +9,17 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Profile from './pages/Profile';
 import AuditLogs from './pages/AuditLogs';
+import AssetInventory from './pages/AssetInventory';
+import Compliance from './pages/Compliance';
+import Reports from './pages/Reports';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', Icon: LayoutDashboard },
+  { path: '/assets', label: 'Asset Inventory', Icon: Database },
   { path: '/findings', label: 'Risk Queue', Icon: AlertCircle },
+  { path: '/compliance', label: 'Compliance', Icon: ShieldCheck },
+  { path: '/reports', label: 'Reports', Icon: Download },
   { path: '/integrations', label: 'Integrations', Icon: Settings2 },
   { path: '/audit-logs', label: 'Audit Trail', Icon: Settings2 },
 ];
@@ -100,7 +106,10 @@ export default function App() {
           <Route path="/register" element={<Register />} />
           
           <Route path="/" element={<ProtectedRoute><MainLayout><Dashboard /></MainLayout></ProtectedRoute>} />
+          <Route path="/assets" element={<ProtectedRoute><MainLayout><AssetInventory /></MainLayout></ProtectedRoute>} />
           <Route path="/findings" element={<ProtectedRoute><MainLayout><Findings /></MainLayout></ProtectedRoute>} />
+          <Route path="/compliance" element={<ProtectedRoute><MainLayout><Compliance /></MainLayout></ProtectedRoute>} />
+          <Route path="/reports" element={<ProtectedRoute><MainLayout><Reports /></MainLayout></ProtectedRoute>} />
           <Route path="/integrations" element={<ProtectedRoute><MainLayout><Integrations /></MainLayout></ProtectedRoute>} />
           <Route path="/audit-logs" element={<ProtectedRoute><MainLayout><AuditLogs /></MainLayout></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><MainLayout><Profile /></MainLayout></ProtectedRoute>} />

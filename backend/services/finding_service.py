@@ -3,19 +3,24 @@ from typing import Dict, List, Optional
 from services.firebase_client import get_db, get_runtime_mode, _mock_db, utc_now
 from services.notification_service import notify_finding_resolved
 
-def update_finding_status(org_id: str, finding_id: str, status: str, ignored_reason: Optional[str] = None, updated_by: str = "System") -> bool:
+def update_finding_status(org_id: str, finding_id: str, status: str, ignored_reason: Optional[str] = None, expires_at: Optional[str] = None, updated_by: str = "System") -> bool:
     now = utc_now()
     updates = {"status": status, "updated_at": now, "updated_by": updated_by}
     
     if status == "resolved":
         updates["resolved_at"] = now
-    if status == "ignored":
+    if status in ["ignored", "suppressed"]:
         updates["ignored_reason"] = ignored_reason
+    if status == "suppressed" and expires_at:
+        updates["expires_at"] = expires_at
 
     if get_runtime_mode() == "demo":
         finding = next((f for f in _mock_db["findings"] if f.get("id") == finding_id and f.get("org_id") == org_id), None)
         if finding:
+            prev_status = finding.get("status")
             finding.update(updates)
+            if status == "resolved" and prev_status != "resolved":
+                notify_finding_resolved(org_id, finding)
             return True
         return False
 
@@ -26,7 +31,10 @@ def update_finding_status(org_id: str, finding_id: str, status: str, ignored_rea
     doc_ref = db.collection("findings").document(finding_id)
     doc = doc_ref.get()
     if doc.exists and doc.to_dict().get("org_id") == org_id:
+        prev_status = doc.to_dict().get("status")
         doc_ref.update(updates)
+        if status == "resolved" and prev_status != "resolved":
+            notify_finding_resolved(org_id, doc.to_dict())
         return True
     return False
 
