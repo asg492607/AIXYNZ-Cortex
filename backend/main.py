@@ -18,6 +18,7 @@ from api.asset_routes import router as asset_router
 from api.reporting_routes import router as reporting_router
 from api.health_routes import router as health_router
 from api.webhook_routes import router as webhook_router
+from api.copilot_routes import router as copilot_router
 from services.scheduler import start_scheduler
 
 # ── Structured Logging ──────────────────────────────────────────────────────
@@ -73,6 +74,7 @@ app.include_router(asset_router,       prefix="/api/v1")
 app.include_router(reporting_router,   prefix="/api/v1")
 app.include_router(api_router,         prefix="/api/v1")
 app.include_router(webhook_router,     prefix="/api/v1")
+app.include_router(copilot_router,     prefix="/api/v1")
 
 # ── Lifecycle ────────────────────────────────────────────────────────────────
 @app.on_event("startup")

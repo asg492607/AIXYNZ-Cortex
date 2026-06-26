@@ -19,6 +19,7 @@ _mock_db = {
     "comments": [],
     "scan_logs": [],
     "audit_logs": [],
+    "chat_threads": [],
 }
 
 def init_firebase():
@@ -236,3 +237,42 @@ def save_remediation(remediation: dict, org_id: str = "demo-org"):
 
     ticket_id = payload["ticket_id"] or f"rem_{uuid.uuid4().hex[:8]}"
     db.collection("remediations").document(ticket_id).set(payload)
+
+def get_chat_history(org_id: str, thread_id: str) -> List[dict]:
+    if get_runtime_mode() == "demo":
+        threads = _mock_db.setdefault("chat_threads", [])
+        thread = next((t for t in threads if t.get("org_id") == org_id and t.get("thread_id") == thread_id), None)
+        return thread.get("messages", []) if thread else []
+        
+    db = get_db()
+    if not db:
+        return []
+        
+    doc = db.collection("chat_threads").document(thread_id).get()
+    if doc.exists and doc.to_dict().get("org_id") == org_id:
+        return doc.to_dict().get("messages", [])
+    return []
+
+def append_chat_message(org_id: str, thread_id: str, role: str, content: str):
+    msg = {"role": role, "content": content, "timestamp": utc_now()}
+    
+    if get_runtime_mode() == "demo":
+        threads = _mock_db.setdefault("chat_threads", [])
+        thread = next((t for t in threads if t.get("org_id") == org_id and t.get("thread_id") == thread_id), None)
+        if not thread:
+            thread = {"org_id": org_id, "thread_id": thread_id, "messages": []}
+            threads.append(thread)
+        thread["messages"].append(msg)
+        return
+        
+    db = get_db()
+    if not db:
+        return
+        
+    doc_ref = db.collection("chat_threads").document(thread_id)
+    doc = doc_ref.get()
+    if not doc.exists:
+        doc_ref.set({"org_id": org_id, "thread_id": thread_id, "messages": [msg]})
+    else:
+        doc_ref.update({"messages": firestore.ArrayUnion([msg])})
+
