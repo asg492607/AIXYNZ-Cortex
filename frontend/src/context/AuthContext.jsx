@@ -7,8 +7,8 @@ import {
   onAuthStateChanged,
   sendPasswordResetEmail,
 } from 'firebase/auth';
-import { auth, googleProvider } from '../lib/firebase';
-import api from '../lib/api';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { auth, googleProvider, db } from '../lib/firebase';
 
 const AuthContext = createContext();
 
@@ -16,44 +16,64 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
+// Generate simple unique ID for org
+const generateId = () => Math.random().toString(36).substring(2, 15);
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('cortex_token') || null);
   const [loading, setLoading] = useState(true);
 
-  // ── Helper: fetch or auto-create backend user profile ──
-  const syncBackendUser = async (firebaseUser) => {
-    const idToken = await firebaseUser.getIdToken(/* forceRefresh */ true);
+  // ── Helper: fetch or auto-create user in Firestore ──
+  const syncFirestoreUser = async (firebaseUser, defaultOrgName = null) => {
+    const idToken = await firebaseUser.getIdToken(true);
     setToken(idToken);
     localStorage.setItem('cortex_token', idToken);
 
     try {
-      // Try fetching existing profile first
-      const res = await api.get('/me');
-      setUser(res.data.data);
-    } catch (err) {
-      if (err.response?.status === 401 || err.response?.status === 404) {
-        // First-time sign-in via Google — auto-register with a default org name
-        try {
-          const orgName = firebaseUser.displayName
-            ? `${firebaseUser.displayName.split(' ')[0]}'s Org`
-            : 'My Organization';
-          const res = await api.post('/auth/register', {
-            token: idToken,
-            org_name: orgName,
-          });
-          setUser(res.data.data?.user || res.data.data);
-        } catch (regErr) {
-          console.error('Auto-register failed:', regErr);
-        }
+      const userRef = doc(db, 'users', firebaseUser.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (userSnap.exists()) {
+        setUser(userSnap.data());
+      } else {
+        // First time sign-in (e.g. Google or new Email signup)
+        const orgId = `org_${generateId()}`;
+        const orgName = defaultOrgName || (firebaseUser.displayName ? `${firebaseUser.displayName.split(' ')[0]}'s Org` : 'My Organization');
+        const now = new Date().toISOString();
+
+        // 1. Create Organization doc
+        const orgData = {
+          id: orgId,
+          name: orgName,
+          created_at: now,
+          updated_at: now,
+        };
+        await setDoc(doc(db, 'organizations', orgId), orgData);
+
+        // 2. Create User doc
+        const userData = {
+          id: firebaseUser.uid,
+          email: firebaseUser.email,
+          name: firebaseUser.displayName || firebaseUser.email.split('@')[0],
+          org_id: orgId,
+          role: 'admin',
+          created_at: now,
+          updated_at: now,
+        };
+        await setDoc(userRef, userData);
+        
+        setUser(userData);
       }
+    } catch (err) {
+      console.error('Failed to sync user with Firestore:', err);
     }
   };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        await syncBackendUser(firebaseUser);
+        await syncFirestoreUser(firebaseUser);
       } else {
         setUser(null);
         setToken(null);
@@ -72,25 +92,15 @@ export function AuthProvider({ children }) {
     signInWithPopup(auth, googleProvider);
 
   const register = async (email, password, orgName) => {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const idToken = await userCredential.user.getIdToken();
-    setToken(idToken);
-    localStorage.setItem('cortex_token', idToken);
-
-    const res = await api.post('/auth/register', { token: idToken, org_name: orgName });
-    setUser(res.data.data?.user || res.data.data);
-    return userCredential;
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    await syncFirestoreUser(cred.user, orgName);
+    return cred;
   };
 
   const registerWithGoogle = async (orgName) => {
-    const userCredential = await signInWithPopup(auth, googleProvider);
-    const idToken = await userCredential.user.getIdToken();
-    setToken(idToken);
-    localStorage.setItem('cortex_token', idToken);
-
-    const res = await api.post('/auth/register', { token: idToken, org_name: orgName });
-    setUser(res.data.data?.user || res.data.data);
-    return userCredential;
+    const cred = await signInWithPopup(auth, googleProvider);
+    await syncFirestoreUser(cred.user, orgName);
+    return cred;
   };
 
   const resetPassword = (email) =>

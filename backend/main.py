@@ -11,7 +11,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from api.routes import router as api_router
-from api.auth_routes import router as auth_router
 from api.organization_routes import router as org_router
 from api.user_routes import router as user_router
 from api.integration_routes import router as integration_router
@@ -80,7 +79,6 @@ async def log_requests(request: Request, call_next):
 
 # ── Routers ──────────────────────────────────────────────────────────────────
 app.include_router(health_router)                            # /health, /health/deep (no prefix)
-app.include_router(auth_router,        prefix="/api/v1/auth")
 app.include_router(org_router,         prefix="/api/v1")
 app.include_router(user_router,        prefix="/api/v1")
 app.include_router(integration_router, prefix="/api/v1")
