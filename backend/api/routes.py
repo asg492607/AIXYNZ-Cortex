@@ -57,9 +57,7 @@ async def get_dashboard_summary(current_user: Dict = Depends(get_current_user)):
     org_id = current_user["org_id"]
     findings = get_findings(org_id)
 
-    if not findings and get_runtime_mode() == "demo":
-        run_full_scan(org_id)
-        findings = get_findings(org_id)
+    # No auto-scan in live mode. Users connect integrations to populate data.
 
     # Compute MTTR and trends
     resolved_findings = [f for f in findings if f.get("status") == "resolved" and f.get("resolved_at") and f.get("detected_at")]
