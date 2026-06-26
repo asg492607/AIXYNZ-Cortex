@@ -2,11 +2,8 @@ import axios from 'react';
 import axiosInstance from 'axios';
 
 // Get base URL from environment or fallback to localhost
-let rawUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
-if (rawUrl && !rawUrl.startsWith('http')) {
-  rawUrl = `https://${rawUrl}/api/v1`;
-}
-const API_BASE = rawUrl;
+// In single-service production (Render), VITE_API_URL isn't needed, we just use the relative /api/v1 path.
+const API_BASE = import.meta.env.PROD ? '/api/v1' : (import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1');
 
 const api = axiosInstance.create({
   baseURL: API_BASE,

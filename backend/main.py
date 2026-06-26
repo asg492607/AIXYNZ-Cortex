@@ -7,6 +7,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from api.routes import router as api_router
 from api.auth_routes import router as auth_router
@@ -92,3 +94,21 @@ app.include_router(copilot_router,     prefix="/api/v1")
 app.include_router(graph_router,       prefix="/api/v1")
 app.include_router(workflow_router,    prefix="/api/v1")
 app.include_router(api_key_router,     prefix="/api/v1", tags=["api_keys"])
+
+# ── Static Frontend Serving ───────────────────────────────────────────────────
+# Mount the React dist directory. If it doesn't exist (e.g., local dev), skip to avoid errors.
+frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
+if os.path.isdir(frontend_dist):
+    # Mount everything under /assets, etc directly, but fallback for index.html is needed for React Router
+    app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dist, "assets")), name="assets")
+    
+    # Catch-all route to serve the React SPA for any non-API route
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        # Allow serving other files in dist like vite.svg, robots.txt, etc if they exist
+        target_path = os.path.join(frontend_dist, full_path)
+        if os.path.isfile(target_path):
+            return FileResponse(target_path)
+        return FileResponse(os.path.join(frontend_dist, "index.html"))
+else:
+    logger.warning(f"Frontend dist directory not found at {frontend_dist}. Running API only.")

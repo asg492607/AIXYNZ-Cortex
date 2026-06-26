@@ -1,26 +1,17 @@
 services:
   - type: web
-    name: cortex-backend
+    name: cortex-platform
     env: python
-    rootDir: backend
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "uvicorn main:app --host 0.0.0.0 --port $PORT"
+    rootDir: .
+    buildCommand: "cd frontend && npm install && npm run build && cd ../backend && pip install -r requirements.txt"
+    startCommand: "cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.0"
+      - key: NODE_VERSION
+        value: "20.x"
       - key: USE_RQ
         value: "false"
       - key: LOG_LEVEL
         value: "INFO"
       # To connect to production Firebase, add FIREBASE_CREDENTIALS containing the JSON string
-
-  - type: web
-    name: cortex-frontend
-    env: static
-    rootDir: frontend
-    buildCommand: "npm install && npm run build"
-    staticPublishPath: "./dist"
-    envVars:
-      - key: VITE_API_URL
-        fromService:
-          type: web
-          name: cortex-backend
-          envVarKey: RENDER_EXTERNAL_URL
