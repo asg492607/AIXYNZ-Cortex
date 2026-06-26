@@ -19,7 +19,11 @@ const firebaseConfig = {
   measurementId:     injectedConfig.measurementId     || import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
-if (!firebaseConfig.apiKey || firebaseConfig.apiKey.includes('undefined')) {
+const hasValidKey = firebaseConfig.apiKey && 
+                    typeof firebaseConfig.apiKey === 'string' && 
+                    !firebaseConfig.apiKey.includes('undefined');
+
+if (!hasValidKey) {
   console.error(
     "🚨 CRITICAL ERROR: Firebase API Key is missing!\n" +
     "If you are on Render: Go to the Environment tab, add the VITE_FIREBASE_ variables, and restart the server."
