@@ -16,6 +16,14 @@ const firebaseConfig = {
   measurementId:     import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
+if (!firebaseConfig.apiKey || firebaseConfig.apiKey.includes('undefined')) {
+  console.error(
+    "🚨 CRITICAL ERROR: Firebase API Key is missing!\n" +
+    "Because we removed hardcoded keys from GitHub, Vite must see the VITE_FIREBASE_API_KEY environment variable DURING the build step.\n" +
+    "If you are on Render: Go to Environment tab, add the VITE_ variables, then click 'Manual Deploy -> Clear build cache & deploy'."
+  );
+}
+
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
