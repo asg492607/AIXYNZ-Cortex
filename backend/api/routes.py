@@ -321,3 +321,18 @@ async def api_get_siem_config(current_user: Dict = Depends(get_current_user)):
             "jira": {"configured": True, "auto_sync": True, "project_key": "CORTEX"},
         }
     }
+
+class PolicyTestRequest(BaseModel):
+    policy_code: str
+    asset_data: Dict
+
+@router.post("/policies/test")
+async def api_test_policy(
+    request: PolicyTestRequest,
+    current_user: Dict = Depends(require_role("analyst"))
+):
+    from services.policy_engine import evaluate_policy
+    result = evaluate_policy(request.policy_code, request.asset_data)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
