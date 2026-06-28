@@ -8,6 +8,7 @@ from services.firebase_client import (
     get_finding_by_id,
     get_findings,
     get_runtime_mode,
+    utc_now
 )
 from services.groq_client import analyze_finding
 from services.scan_service import run_full_scan
@@ -319,6 +320,51 @@ async def api_get_siem_config(current_user: Dict = Depends(get_current_user)):
             "splunk": {"configured": True, "auto_sync": False, "endpoint": "https://splunk-hec.example.com"},
             "datadog": {"configured": False, "auto_sync": False, "endpoint": ""},
             "jira": {"configured": True, "auto_sync": True, "project_key": "CORTEX"},
+        }
+    }
+
+@router.get("/reports/executive")
+async def api_get_executive_report(current_user: Dict = Depends(get_current_user)):
+    org_id = current_user["org_id"]
+    findings = get_findings(org_id)
+    
+    # Posture Score
+    critical_count = len([f for f in findings if f.get("severity") == "Critical" and f.get("status") != "resolved"])
+    high_count = len([f for f in findings if f.get("severity") == "High" and f.get("status") != "resolved"])
+    posture_score = max(0, 100 - (critical_count * 10) - (high_count * 5))
+    
+    # Severity Breakdown
+    severity_breakdown = {"Critical": 0, "High": 0, "Medium": 0, "Low": 0}
+    for f in findings:
+        sev = f.get("severity", "Low")
+        if sev in severity_breakdown:
+            severity_breakdown[sev] += 1
+            
+    # Top Risks (Open, sorted by risk score)
+    open_findings = [f for f in findings if f.get("status") != "resolved"]
+    top_risks = sorted(open_findings, key=lambda x: x.get("risk_score", 0), reverse=True)[:5]
+    
+    # MTTR
+    resolved = [f for f in findings if f.get("status") == "resolved" and f.get("resolved_at") and f.get("detected_at")]
+    mttr_days = 0.0
+    if resolved:
+        total_secs = sum(
+            (datetime.fromisoformat(f["resolved_at"].replace("Z", "+00:00")) -
+             datetime.fromisoformat(f["detected_at"].replace("Z", "+00:00"))).total_seconds()
+            for f in resolved
+        )
+        mttr_days = round((total_secs / len(resolved)) / 86400, 1)
+
+    return {
+        "success": True,
+        "data": {
+            "org_id": org_id,
+            "generated_at": utc_now(),
+            "posture_score": posture_score,
+            "total_findings": len(findings),
+            "severity_breakdown": severity_breakdown,
+            "top_risks": top_risks,
+            "mttr_days": mttr_days
         }
     }
 
