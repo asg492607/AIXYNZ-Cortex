@@ -60,10 +60,11 @@ def _infer_edges(nodes: List[Dict], findings: List[Dict]) -> List[Dict]:
 
     node_map = {n["id"]: n for n in nodes}
 
-    s3_nodes = [n for n in nodes if n["type"] == "S3Bucket"]
-    ec2_nodes = [n for n in nodes if n["type"] == "EC2Instance"]
-    iam_nodes = [n for n in nodes if n["type"] in ("IAMRole", "IAMUser")]
+    s3_nodes = [n for n in nodes if n["type"] in ("S3Bucket", "storage_account")]
+    ec2_nodes = [n for n in nodes if n["type"] in ("EC2Instance", "virtual_machine")]
+    iam_nodes = [n for n in nodes if n["type"] in ("IAMRole", "IAMUser", "ManagedIdentity")]
     repo_nodes = [n for n in nodes if n["type"] == "repository"]
+    kv_nodes = [n for n in nodes if n["type"] in ("key_vault",)]
 
     # EC2 → S3: EC2 instances commonly access S3 buckets
     for ec2 in ec2_nodes:
@@ -79,9 +80,9 @@ def _infer_edges(nodes: List[Dict], findings: List[Dict]) -> List[Dict]:
                 })
                 edge_ids.add(eid)
 
-    # IAM → EC2/S3: IAM roles/users own or can access instances and buckets
+    # IAM → EC2/S3/KV: IAM roles/users own or can access resources
     for iam in iam_nodes:
-        for target in ec2_nodes + s3_nodes:
+        for target in ec2_nodes + s3_nodes + kv_nodes:
             eid = f"{iam['id']}->{target['id']}"
             if eid not in edge_ids:
                 edges.append({
@@ -209,8 +210,8 @@ def get_attack_paths(org_id: str) -> List[Dict]:
     # Entry points: exposed or critical-risk nodes
     entry_points = [n for n in graph["nodes"] if n["risk_level"] in ("critical", "high")]
 
-    # High-value targets: IAM roles, secrets, or high-asset-count nodes
-    targets = [n for n in graph["nodes"] if n["type"] in ("IAMRole", "Secret", "S3Bucket") and n["risk_level"] == "critical"]
+    # High-value targets: IAM roles, secrets, KV, or high-asset-count nodes
+    targets = [n for n in graph["nodes"] if n["type"] in ("IAMRole", "Secret", "S3Bucket", "storage_account", "key_vault") and n["risk_level"] == "critical"]
 
     paths = []
 
@@ -221,7 +222,7 @@ def get_attack_paths(org_id: str) -> List[Dict]:
         if not node:
             return
         # If we've reached a high-value target, record the path
-        if node["type"] in ("IAMRole", "Secret") and len(path) > 1:
+        if node["type"] in ("IAMRole", "Secret", "key_vault") and len(path) > 1:
             path_nodes = [nodes_by_id[p] for p in path if p in nodes_by_id]
             total_risk = sum(n["risk_score"] for n in path_nodes)
             paths.append({

@@ -19,6 +19,10 @@ const TYPE_ICONS = {
   repository:    { label: 'REPO',  color: '#fb923c' },
   Secret:        { label: 'SEC!',  color: '#ef4444' },
   SecurityGroup: { label: 'SG',    color: '#f472b6' },
+  storage_account: { label: 'SA',  color: '#60a5fa' },
+  virtual_machine: { label: 'VM',  color: '#34d399' },
+  key_vault:     { label: 'KV',    color: '#fcd34d' },
+  security_group: { label: 'NSG',  color: '#f472b6' },
   unknown:       { label: '?',     color: '#6b7280' },
 };
 

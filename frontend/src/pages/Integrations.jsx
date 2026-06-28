@@ -10,7 +10,8 @@ import {
   Loader2,
   Wifi,
   WifiOff,
-  Cpu
+  Cpu,
+  Server
 } from 'lucide-react';
 
 import api from '../lib/api';
@@ -32,6 +33,14 @@ const INTEGRATIONS = [
     desc: 'Scans S3 buckets, Security Groups, and IAM roles across all enabled regions.',
     envVar: 'AWS credentials',
     liveHint: 'Configure AWS credentials / IAM role to enable live scanning.',
+  },
+  {
+    key: 'azure',
+    name: 'Azure',
+    Icon: Server,
+    desc: 'Scans Storage Accounts, VMs, Key Vaults, and Network Security Groups.',
+    envVar: 'AZURE_CLIENT_ID',
+    liveHint: 'Ensure Azure CLI is logged in or env credentials are set.',
   },
   {
     key: 'jira',
