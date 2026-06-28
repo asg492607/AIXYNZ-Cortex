@@ -404,3 +404,53 @@ async def api_share_finding(
         raise HTTPException(status_code=500, detail=result.get("error", "Share failed"))
         
     return result
+
+class ScheduleRequest(BaseModel):
+    frequency: str
+    time: str
+    target: str
+
+@router.get("/schedules")
+async def api_get_schedules(current_user: Dict = Depends(get_current_user)):
+    org_id = current_user["org_id"]
+    if get_runtime_mode() == "demo":
+        from services.firebase_client import _mock_db
+        schedules = [s for s in _mock_db.get("schedules", []) if s.get("org_id") == org_id]
+        return {"success": True, "data": schedules}
+        
+    db = get_db()
+    if not db:
+        return {"success": True, "data": []}
+        
+    docs = db.collection("schedules").where("org_id", "==", org_id).stream()
+    return {"success": True, "data": [doc.to_dict() for doc in docs]}
+
+@router.post("/schedules")
+async def api_create_schedule(
+    request: ScheduleRequest,
+    current_user: Dict = Depends(require_role("admin"))
+):
+    import uuid
+    org_id = current_user["org_id"]
+    schedule_data = {
+        "id": f"sched_{uuid.uuid4().hex[:8]}",
+        "org_id": org_id,
+        "frequency": request.frequency,
+        "time": request.time,
+        "target": request.target,
+        "status": "active",
+        "created_at": utc_now()
+    }
+    
+    if get_runtime_mode() == "demo":
+        from services.firebase_client import _mock_db
+        if "schedules" not in _mock_db:
+            _mock_db["schedules"] = []
+        _mock_db["schedules"].append(schedule_data)
+        return {"success": True, "data": schedule_data}
+        
+    db = get_db()
+    if db:
+        db.collection("schedules").document(schedule_data["id"]).set(schedule_data)
+    
+    return {"success": True, "data": schedule_data}

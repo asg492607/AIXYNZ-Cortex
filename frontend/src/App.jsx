@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import {
   Shield, LayoutDashboard, AlertCircle, Settings2, Database, ShieldCheck,
-  Download, GitBranch, Zap, Moon, Sun, LogOut, User, Users, Key, ClipboardList, Plug, Send, Code
+  Download, GitBranch, Zap, Moon, Sun, LogOut, User, Users, Key, ClipboardList, Plug, Send, Code, CalendarClock
 } from 'lucide-react';
 
 import Landing from './pages/Landing';
@@ -25,6 +25,7 @@ import Team from './pages/Team';
 import AcceptInvite from './pages/AcceptInvite';
 import SIEMSettings from './pages/SIEMSettings';
 import Policies from './pages/Policies';
+import Schedules from './pages/Schedules';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 const NAV_ITEMS = [
@@ -42,6 +43,7 @@ const BOTTOM_ITEMS = [
   { path: '/api-keys',    label: 'API Keys',        Icon: Key },
   { path: '/audit-logs',  label: 'Audit Trail',     Icon: ClipboardList },
   { path: '/settings/siem',label: 'SIEM & Export',  Icon: Send },
+  { path: '/settings/schedules',label: 'Scan Schedules',Icon: CalendarClock },
   { path: '/policies',    label: 'Custom Policies', Icon: Code },
   { path: '/team',        label: 'Team',            Icon: Users },
   { path: '/profile',     label: 'Profile',         Icon: User },
@@ -206,6 +208,7 @@ export default function App() {
           <Route path="/integrations" element={<ProtectedRoute><MainLayout {...layoutProps}><Integrations darkMode={darkMode} /></MainLayout></ProtectedRoute>} />
           <Route path="/audit-logs" element={<ProtectedRoute><MainLayout {...layoutProps}><AuditLogs darkMode={darkMode} /></MainLayout></ProtectedRoute>} />
           <Route path="/settings/siem" element={<ProtectedRoute><MainLayout {...layoutProps}><SIEMSettings darkMode={darkMode} /></MainLayout></ProtectedRoute>} />
+          <Route path="/settings/schedules" element={<ProtectedRoute><MainLayout {...layoutProps}><Schedules darkMode={darkMode} /></MainLayout></ProtectedRoute>} />
           <Route path="/policies" element={<ProtectedRoute><MainLayout {...layoutProps}><Policies darkMode={darkMode} /></MainLayout></ProtectedRoute>} />
           <Route path="/team" element={<ProtectedRoute><MainLayout {...layoutProps}><Team darkMode={darkMode} /></MainLayout></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><MainLayout {...layoutProps}><Profile darkMode={darkMode} /></MainLayout></ProtectedRoute>} />
