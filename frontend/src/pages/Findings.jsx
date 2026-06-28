@@ -11,7 +11,8 @@ import {
   LinkIcon,
   MessageSquare,
   User,
-  Clock
+  Clock,
+  Send
 } from 'lucide-react';
 
 import api from '../lib/api';
@@ -39,6 +40,8 @@ export default function Findings() {
   const [rescanning, setRescanning] = useState(false);
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const [exportResult, setExportResult] = useState(null);
 
   // ── Data loaders ──────────────────────────────────────────────────────────
 
@@ -168,6 +171,26 @@ export default function Findings() {
       setAnalysisError('Failed to create remediation ticket.');
     } finally {
       setRemediating(false);
+    }
+  };
+
+  const handleExportToSIEM = async (provider) => {
+    if (!selected?.id) return;
+    setExporting(true);
+    setExportResult(null);
+    try {
+      const res = await api.post(`/siem/export`, {
+        finding_ids: [selected.id],
+        provider: provider
+      });
+      setExportResult({ ok: true, msg: res.data.message || `Exported to ${provider}` });
+      setTimeout(() => setExportResult(null), 4000);
+    } catch (err) {
+      console.error(err);
+      setExportResult({ ok: false, msg: `Export to ${provider} failed.` });
+      setTimeout(() => setExportResult(null), 4000);
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -453,6 +476,27 @@ export default function Findings() {
                   )}
                 </button>
               )}
+              {exportResult && (
+                <div className={`mt-2 px-4 py-2 rounded-lg text-sm border ${exportResult.ok ? 'bg-green-500/10 border-green-500/30 text-green-300' : 'bg-red-500/10 border-red-500/30 text-red-300'}`}>
+                  {exportResult.msg}
+                </div>
+              )}
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => handleExportToSIEM('splunk')}
+                  disabled={exporting || !selected?.id}
+                  className="flex-1 bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-300 py-2 rounded-lg flex items-center justify-center gap-2 transition text-sm font-semibold"
+                >
+                  <Send className="w-4 h-4" /> Splunk
+                </button>
+                <button
+                  onClick={() => handleExportToSIEM('datadog')}
+                  disabled={exporting || !selected?.id}
+                  className="flex-1 bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-300 py-2 rounded-lg flex items-center justify-center gap-2 transition text-sm font-semibold"
+                >
+                  <Send className="w-4 h-4" /> Datadog
+                </button>
+              </div>
             </div>
             {/* Comments Section */}
             <div className="mt-8 border-t border-gray-800 pt-6">

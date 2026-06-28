@@ -284,3 +284,40 @@ async def get_metrics(current_user: Dict = Depends(get_current_user)):
         "mttr_days": mttr_days,
         "recent_scans": scan_logs,
     }
+
+class SIEMExportRequest(BaseModel):
+    finding_ids: List[str]
+    provider: str
+
+@router.post("/siem/export")
+async def api_export_to_siem(
+    request: SIEMExportRequest,
+    current_user: Dict = Depends(require_role("analyst"))
+):
+    from services.siem_service import export_to_siem
+    org_id = current_user["org_id"]
+    findings = get_findings(org_id)
+    
+    # Filter findings to just those requested
+    to_export = [f for f in findings if f.get("id") in request.finding_ids]
+    
+    if not to_export:
+        raise HTTPException(status_code=400, detail="No valid findings found for export.")
+        
+    result = export_to_siem(org_id, request.provider, to_export)
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error", "Export failed"))
+        
+    return result
+
+@router.get("/siem/config")
+async def api_get_siem_config(current_user: Dict = Depends(get_current_user)):
+    """Mock endpoint returning SIEM configuration status."""
+    return {
+        "success": True,
+        "data": {
+            "splunk": {"configured": True, "auto_sync": False, "endpoint": "https://splunk-hec.example.com"},
+            "datadog": {"configured": False, "auto_sync": False, "endpoint": ""},
+            "jira": {"configured": True, "auto_sync": True, "project_key": "CORTEX"},
+        }
+    }
