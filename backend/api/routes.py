@@ -454,3 +454,24 @@ async def api_create_schedule(
         db.collection("schedules").document(schedule_data["id"]).set(schedule_data)
     
     return {"success": True, "data": schedule_data}
+
+class UpdateRoleRequest(BaseModel):
+    role: Literal["admin", "analyst", "viewer"]
+
+@router.patch("/team/{user_id}/role")
+async def api_update_user_role(
+    user_id: str,
+    request: UpdateRoleRequest,
+    current_user: Dict = Depends(require_role("admin"))
+):
+    from services.user_service import update_user_role
+    org_id = current_user["org_id"]
+    
+    if current_user["id"] == user_id:
+        raise HTTPException(status_code=400, detail="Cannot change your own role")
+        
+    success = update_user_role(user_id, request.role, org_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="User not found in this organization")
+        
+    return {"success": True, "message": "Role updated successfully"}

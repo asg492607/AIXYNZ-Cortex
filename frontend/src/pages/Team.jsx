@@ -63,6 +63,16 @@ export default function Team() {
     }
   };
 
+  const handleRoleChange = async (targetUserId, newRole) => {
+    try {
+      await api.patch(`/team/${targetUserId}/role`, { role: newRole });
+      setMembers(prev => prev.map(m => m.id === targetUserId ? { ...m, role: newRole } : m));
+    } catch (err) {
+      console.error("Failed to update role", err);
+      alert(err.response?.data?.detail || "Failed to update role");
+    }
+  };
+
   if (loading) return <div className="p-8 text-gray-400">Loading team...</div>;
 
   return (
@@ -115,14 +125,26 @@ export default function Team() {
                   </div>
                 </td>
                 <td className="px-6 py-4">
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${
-                    member.role === 'admin' ? 'bg-purple-900/20 border-purple-800/50 text-purple-400' :
-                    member.role === 'analyst' ? 'bg-blue-900/20 border-blue-800/50 text-blue-400' :
-                    'bg-gray-800 border-gray-700 text-gray-300'
-                  }`}>
-                    <Shield className="w-3 h-3" />
-                    {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
-                  </span>
+                  {user.role === 'admin' && member.id !== user.id ? (
+                    <select
+                      value={member.role}
+                      onChange={(e) => handleRoleChange(member.id, e.target.value)}
+                      className="bg-gray-800 border border-gray-700 text-white rounded p-1 text-sm outline-none focus:border-blue-500"
+                    >
+                      <option value="admin">Admin</option>
+                      <option value="analyst">Analyst</option>
+                      <option value="viewer">Viewer</option>
+                    </select>
+                  ) : (
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${
+                      member.role === 'admin' ? 'bg-purple-900/20 border-purple-800/50 text-purple-400' :
+                      member.role === 'analyst' ? 'bg-blue-900/20 border-blue-800/50 text-blue-400' :
+                      'bg-gray-800 border-gray-700 text-gray-300'
+                    }`}>
+                      <Shield className="w-3 h-3" />
+                      {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+                    </span>
+                  )}
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-400">
                   {new Date(member.created_at).toLocaleDateString()}
