@@ -382,3 +382,25 @@ async def api_test_policy(
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error"))
     return result
+
+class CollaborationShareRequest(BaseModel):
+    finding_id: str
+    platform: str
+    channel: Optional[str] = None
+
+@router.post("/collaboration/share")
+async def api_share_finding(
+    request: CollaborationShareRequest,
+    current_user: Dict = Depends(require_role("analyst"))
+):
+    from services.collaboration_service import share_finding
+    org_id = current_user["org_id"]
+    finding = get_finding_by_id(request.finding_id, org_id)
+    if not finding:
+        raise HTTPException(status_code=404, detail="Finding not found")
+        
+    result = share_finding(org_id, request.platform, finding, request.channel)
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error", "Share failed"))
+        
+    return result

@@ -12,7 +12,8 @@ import {
   MessageSquare,
   User,
   Clock,
-  Send
+  Send,
+  Share2
 } from 'lucide-react';
 
 import api from '../lib/api';
@@ -49,6 +50,9 @@ export default function Findings() {
   const [newComment, setNewComment] = useState('');
   const [exporting, setExporting] = useState(false);
   const [exportResult, setExportResult] = useState(null);
+
+  const [sharing, setSharing] = useState(false);
+  const [shareResult, setShareResult] = useState(null);
 
   // ── Data loaders ──────────────────────────────────────────────────────────
 
@@ -198,6 +202,26 @@ export default function Findings() {
       setTimeout(() => setExportResult(null), 4000);
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleShare = async (platform) => {
+    if (!selected?.id) return;
+    setSharing(true);
+    setShareResult(null);
+    try {
+      const res = await api.post(`/collaboration/share`, {
+        finding_id: selected.id,
+        platform: platform
+      });
+      setShareResult({ ok: true, msg: res.data.message || `Shared to ${platform}` });
+      setTimeout(() => setShareResult(null), 4000);
+    } catch (err) {
+      console.error(err);
+      setShareResult({ ok: false, msg: `Failed to share to ${platform}.` });
+      setTimeout(() => setShareResult(null), 4000);
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -534,6 +558,28 @@ export default function Findings() {
                   className="flex-1 bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-300 py-2 rounded-lg flex items-center justify-center gap-2 transition text-sm font-semibold"
                 >
                   <Send className="w-4 h-4" /> Datadog
+                </button>
+              </div>
+
+              {shareResult && (
+                <div className={`mt-2 px-4 py-2 rounded-lg text-sm border ${shareResult.ok ? 'bg-green-500/10 border-green-500/30 text-green-300' : 'bg-red-500/10 border-red-500/30 text-red-300'}`}>
+                  {shareResult.msg}
+                </div>
+              )}
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => handleShare('slack')}
+                  disabled={sharing || !selected?.id}
+                  className="flex-1 bg-gray-800 border border-gray-700 hover:bg-[#4A154B]/80 hover:border-[#4A154B] hover:text-white text-gray-300 py-2 rounded-lg flex items-center justify-center gap-2 transition text-sm font-semibold"
+                >
+                  <Share2 className="w-4 h-4" /> Slack
+                </button>
+                <button
+                  onClick={() => handleShare('teams')}
+                  disabled={sharing || !selected?.id}
+                  className="flex-1 bg-gray-800 border border-gray-700 hover:bg-[#5B5FC7]/80 hover:border-[#5B5FC7] hover:text-white text-gray-300 py-2 rounded-lg flex items-center justify-center gap-2 transition text-sm font-semibold"
+                >
+                  <Share2 className="w-4 h-4" /> Teams
                 </button>
               </div>
             </div>
