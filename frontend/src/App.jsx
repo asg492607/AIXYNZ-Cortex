@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import {
   Shield, LayoutDashboard, AlertCircle, Settings2, Database, ShieldCheck,
-  Download, GitBranch, Zap, Moon, Sun, LogOut, User, Key, ClipboardList, Plug
+  Download, GitBranch, Zap, Moon, Sun, LogOut, User, Users, Key, ClipboardList, Plug
 } from 'lucide-react';
 
 import Landing from './pages/Landing';
@@ -21,6 +21,8 @@ import ComplianceDetails from './pages/ComplianceDetails';
 import Reports from './pages/Reports';
 import Workflows from './pages/Workflows';
 import AttackGraph from './pages/AttackGraph';
+import Team from './pages/Team';
+import AcceptInvite from './pages/AcceptInvite';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 const NAV_ITEMS = [
@@ -37,6 +39,7 @@ const BOTTOM_ITEMS = [
   { path: '/integrations',label: 'Integrations',   Icon: Plug },
   { path: '/api-keys',    label: 'API Keys',        Icon: Key },
   { path: '/audit-logs',  label: 'Audit Trail',     Icon: ClipboardList },
+  { path: '/team',        label: 'Team',            Icon: Users },
   { path: '/profile',     label: 'Profile',         Icon: User },
 ];
 
@@ -183,6 +186,7 @@ export default function App() {
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/invite/:token" element={<AcceptInvite />} />
 
           {/* Protected app routes */}
           <Route path="/dashboard" element={<ProtectedRoute><MainLayout {...layoutProps}><Dashboard darkMode={darkMode} /></MainLayout></ProtectedRoute>} />
@@ -197,6 +201,7 @@ export default function App() {
           <Route path="/api-keys" element={<ProtectedRoute><MainLayout {...layoutProps}><ApiKeys darkMode={darkMode} /></MainLayout></ProtectedRoute>} />
           <Route path="/integrations" element={<ProtectedRoute><MainLayout {...layoutProps}><Integrations darkMode={darkMode} /></MainLayout></ProtectedRoute>} />
           <Route path="/audit-logs" element={<ProtectedRoute><MainLayout {...layoutProps}><AuditLogs darkMode={darkMode} /></MainLayout></ProtectedRoute>} />
+          <Route path="/team" element={<ProtectedRoute><MainLayout {...layoutProps}><Team darkMode={darkMode} /></MainLayout></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><MainLayout {...layoutProps}><Profile darkMode={darkMode} /></MainLayout></ProtectedRoute>} />
         </Routes>
       </Router>

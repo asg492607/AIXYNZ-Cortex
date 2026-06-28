@@ -8,7 +8,7 @@ import {
   sendPasswordResetEmail,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { auth, googleProvider, db } from '../lib/firebase';
+import { auth, googleProvider, githubProvider, microsoftProvider, db } from '../lib/firebase';
 
 const AuthContext = createContext();
 
@@ -103,6 +103,12 @@ export function AuthProvider({ children }) {
   const loginWithGoogle = () =>
     signInWithPopup(auth, googleProvider);
 
+  const loginWithGithub = () =>
+    signInWithPopup(auth, githubProvider);
+
+  const loginWithMicrosoft = () =>
+    signInWithPopup(auth, microsoftProvider);
+
   const register = async (email, password, orgName) => {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     await syncFirestoreUser(cred.user, orgName);
@@ -128,7 +134,7 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={{
       user, token, loading,
-      login, loginWithGoogle,
+      login, loginWithGoogle, loginWithGithub, loginWithMicrosoft,
       register, registerWithGoogle,
       resetPassword, logout,
     }}>

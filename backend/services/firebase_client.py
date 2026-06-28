@@ -22,6 +22,7 @@ _mock_db = {
     "chat_threads": [],
     "workflows": [],
     "api_keys": [],
+    "invites": [],
 }
 
 def init_firebase():

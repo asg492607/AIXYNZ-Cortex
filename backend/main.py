@@ -34,6 +34,7 @@ from api.copilot_routes import router as copilot_router
 from api.graph_routes import router as graph_router
 from api.workflow_routes import router as workflow_router
 from api.api_key_routes import router as api_key_router
+from api.organization_invites import router as invites_router
 from services.scheduler import start_scheduler
 
 # ── Structured Logging ──────────────────────────────────────────────────────
@@ -118,6 +119,11 @@ app.include_router(copilot_router,     prefix="/api/v1")
 app.include_router(graph_router,       prefix="/api/v1")
 app.include_router(workflow_router,    prefix="/api/v1")
 app.include_router(api_key_router,     prefix="/api/v1", tags=["api_keys"])
+app.include_router(asset_router, prefix="/api/v1", tags=["assets"])
+app.include_router(integration_router, prefix="/api/v1", tags=["integrations"])
+app.include_router(reporting_router, prefix="/api/v1", tags=["reporting"])
+app.include_router(scan_router, prefix="/api/v1", tags=["scans"])
+app.include_router(invites_router, prefix="/api/v1", tags=["invites"])
 
 # ── Static Frontend Serving ───────────────────────────────────────────────────
 # Mount the React dist directory. If it doesn't exist (e.g., local dev), skip to avoid errors.
