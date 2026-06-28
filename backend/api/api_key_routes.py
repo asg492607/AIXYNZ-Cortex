@@ -2,8 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import Dict, List
 from pydantic import BaseModel
 import secrets
-import hashlib
-
+import bcrypt
 from services.auth_service import get_current_user
 from services.rbac import require_role
 from services.firebase_client import get_api_keys, upsert_api_key, delete_api_key
@@ -38,8 +37,10 @@ async def generate_api_key(
     # Generate raw key
     raw_key = f"aix_{secrets.token_urlsafe(32)}"
     
-    # Generate hash for storage
-    key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+    # Generate bcrypt hash for storage (OWASP Mitigation: Cryptographic Failures)
+    # Using a strong salt/work factor.
+    salt = bcrypt.gensalt(rounds=12)
+    key_hash = bcrypt.hashpw(raw_key.encode('utf-8'), salt).decode('utf-8')
     
     key_data = {
         "name": request.name,

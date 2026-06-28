@@ -59,15 +59,15 @@ if frontend_origin and not frontend_origin.startswith("http"):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[frontend_origin, "*"],
+    allow_origins=[frontend_origin], # Restricted to frontend_origin, removed wildcard '*'
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ── Request Logging Middleware ────────────────────────────────────────────────
+# ── Request Logging & Security Headers Middleware ────────────────────────────────────────────────
 @app.middleware("http")
-async def log_requests(request: Request, call_next):
+async def log_requests_and_add_headers(request: Request, call_next):
     request_id = uuid.uuid4().hex[:8]
     start = time.time()
     response = await call_next(request)
@@ -76,6 +76,17 @@ async def log_requests(request: Request, call_next):
         f"[{request_id}] {request.method} {request.url.path} "
         f"→ {response.status_code} ({duration_ms}ms)"
     )
+    
+    # Add Security Headers (OWASP Mitigation)
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    
+    # For CSP, we must allow the injected inline scripts (Firebase config) and Vite's assets.
+    # In production, consider nonces or hashes for stricter CSP.
+    # We add a basic CSP to restrict framing and object loading.
+    response.headers["Content-Security-Policy"] = "frame-ancestors 'none'; object-src 'none';"
+    
     return response
 
 # ── Routers ──────────────────────────────────────────────────────────────────
