@@ -5,6 +5,7 @@ from connectors.base import BaseConnector
 from connectors.aws_connector import AWSConnector
 from connectors.github_connector import GitHubConnector
 from connectors.azure_connector import AzureConnector
+from connectors.gcp_connector import GCPConnector
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +14,7 @@ _CONNECTOR_CLASSES = {
     "aws": AWSConnector,
     "github": GitHubConnector,
     "azure": AzureConnector,
+    "gcp": GCPConnector,
 }
 
 

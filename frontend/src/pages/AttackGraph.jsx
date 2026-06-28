@@ -23,6 +23,10 @@ const TYPE_ICONS = {
   virtual_machine: { label: 'VM',  color: '#34d399' },
   key_vault:     { label: 'KV',    color: '#fcd34d' },
   security_group: { label: 'NSG',  color: '#f472b6' },
+  gcp_storage_bucket: { label: 'GCS', color: '#60a5fa' },
+  gcp_compute_instance: { label: 'GCE', color: '#34d399' },
+  gcp_service_account: { label: 'SA', color: '#a78bfa' },
+  gcp_vpc_firewall: { label: 'FW', color: '#f472b6' },
   unknown:       { label: '?',     color: '#6b7280' },
 };
 

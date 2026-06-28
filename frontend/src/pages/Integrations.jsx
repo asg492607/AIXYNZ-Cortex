@@ -11,7 +11,8 @@ import {
   Wifi,
   WifiOff,
   Cpu,
-  Server
+  Server,
+  Layers
 } from 'lucide-react';
 
 import api from '../lib/api';
@@ -41,6 +42,14 @@ const INTEGRATIONS = [
     desc: 'Scans Storage Accounts, VMs, Key Vaults, and Network Security Groups.',
     envVar: 'AZURE_CLIENT_ID',
     liveHint: 'Ensure Azure CLI is logged in or env credentials are set.',
+  },
+  {
+    key: 'gcp',
+    name: 'Google Cloud (GCP)',
+    Icon: Layers,
+    desc: 'Scans Cloud Storage, Compute Engine, VPC Firewalls, and IAM Service Accounts.',
+    envVar: 'GOOGLE_APPLICATION_CREDENTIALS',
+    liveHint: 'Set GOOGLE_APPLICATION_CREDENTIALS in backend .env to enable live scanning.',
   },
   {
     key: 'jira',
