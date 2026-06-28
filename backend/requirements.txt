@@ -26,3 +26,6 @@ google-api-python-client>=2.108.0
 google-cloud-storage>=2.13.0
 google-cloud-compute>=1.15.0
 google-cloud-resourcemanager>=1.10.3
+
+# Kubernetes SDK
+kubernetes>=28.1.0

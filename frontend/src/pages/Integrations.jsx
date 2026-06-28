@@ -12,7 +12,8 @@ import {
   WifiOff,
   Cpu,
   Server,
-  Layers
+  Layers,
+  Hexagon
 } from 'lucide-react';
 
 import api from '../lib/api';
@@ -50,6 +51,14 @@ const INTEGRATIONS = [
     desc: 'Scans Cloud Storage, Compute Engine, VPC Firewalls, and IAM Service Accounts.',
     envVar: 'GOOGLE_APPLICATION_CREDENTIALS',
     liveHint: 'Set GOOGLE_APPLICATION_CREDENTIALS in backend .env to enable live scanning.',
+  },
+  {
+    key: 'kubernetes',
+    name: 'Kubernetes',
+    Icon: Hexagon,
+    desc: 'Scans Pods, Deployments, RBAC Roles, Secrets, and Network Policies.',
+    envVar: 'KUBECONFIG',
+    liveHint: 'Runs inside cluster using ServiceAccount or uses local ~/.kube/config.',
   },
   {
     key: 'jira',

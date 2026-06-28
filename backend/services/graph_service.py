@@ -61,10 +61,10 @@ def _infer_edges(nodes: List[Dict], findings: List[Dict]) -> List[Dict]:
     node_map = {n["id"]: n for n in nodes}
 
     s3_nodes = [n for n in nodes if n["type"] in ("S3Bucket", "storage_account", "gcp_storage_bucket")]
-    ec2_nodes = [n for n in nodes if n["type"] in ("EC2Instance", "virtual_machine", "gcp_compute_instance")]
-    iam_nodes = [n for n in nodes if n["type"] in ("IAMRole", "IAMUser", "ManagedIdentity", "gcp_service_account")]
+    ec2_nodes = [n for n in nodes if n["type"] in ("EC2Instance", "virtual_machine", "gcp_compute_instance", "k8s_pod", "k8s_deployment")]
+    iam_nodes = [n for n in nodes if n["type"] in ("IAMRole", "IAMUser", "ManagedIdentity", "gcp_service_account", "k8s_cluster_role")]
     repo_nodes = [n for n in nodes if n["type"] == "repository"]
-    kv_nodes = [n for n in nodes if n["type"] in ("key_vault",)]
+    kv_nodes = [n for n in nodes if n["type"] in ("key_vault", "k8s_secret")]
 
     # EC2 → S3: EC2 instances commonly access S3 buckets
     for ec2 in ec2_nodes:
@@ -211,7 +211,7 @@ def get_attack_paths(org_id: str) -> List[Dict]:
     entry_points = [n for n in graph["nodes"] if n["risk_level"] in ("critical", "high")]
 
     # High-value targets: IAM roles, secrets, KV, or high-asset-count nodes
-    targets = [n for n in graph["nodes"] if n["type"] in ("IAMRole", "Secret", "S3Bucket", "storage_account", "key_vault", "gcp_storage_bucket", "gcp_service_account") and n["risk_level"] == "critical"]
+    targets = [n for n in graph["nodes"] if n["type"] in ("IAMRole", "Secret", "S3Bucket", "storage_account", "key_vault", "gcp_storage_bucket", "gcp_service_account", "k8s_cluster_role", "k8s_secret") and n["risk_level"] == "critical"]
 
     paths = []
 
@@ -222,7 +222,7 @@ def get_attack_paths(org_id: str) -> List[Dict]:
         if not node:
             return
         # If we've reached a high-value target, record the path
-        if node["type"] in ("IAMRole", "Secret", "key_vault", "gcp_service_account") and len(path) > 1:
+        if node["type"] in ("IAMRole", "Secret", "key_vault", "gcp_service_account", "k8s_cluster_role", "k8s_secret") and len(path) > 1:
             path_nodes = [nodes_by_id[p] for p in path if p in nodes_by_id]
             total_risk = sum(n["risk_score"] for n in path_nodes)
             paths.append({

@@ -27,6 +27,10 @@ const TYPE_ICONS = {
   gcp_compute_instance: { label: 'GCE', color: '#34d399' },
   gcp_service_account: { label: 'SA', color: '#a78bfa' },
   gcp_vpc_firewall: { label: 'FW', color: '#f472b6' },
+  k8s_pod: { label: 'POD', color: '#34d399' },
+  k8s_deployment: { label: 'DPLY', color: '#60a5fa' },
+  k8s_cluster_role: { label: 'CROL', color: '#a78bfa' },
+  k8s_secret: { label: 'SEC', color: '#ef4444' },
   unknown:       { label: '?',     color: '#6b7280' },
 };
 

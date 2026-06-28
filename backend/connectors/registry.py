@@ -6,6 +6,7 @@ from connectors.aws_connector import AWSConnector
 from connectors.github_connector import GitHubConnector
 from connectors.azure_connector import AzureConnector
 from connectors.gcp_connector import GCPConnector
+from connectors.k8s_connector import KubernetesConnector
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +16,7 @@ _CONNECTOR_CLASSES = {
     "github": GitHubConnector,
     "azure": AzureConnector,
     "gcp": GCPConnector,
+    "kubernetes": KubernetesConnector,
 }
 
 
