@@ -18,16 +18,20 @@ export default function AssetDetails() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [assetRes, findingsRes, blastRes] = await Promise.all([
+        const [assetRes, findingsRes, blastRes] = await Promise.allSettled([
           api.get(`/assets/${id}`),
           api.get(`/findings?asset_id=${id}`),
-          api.get(`/graph/blast-radius/${id}`).catch(() => ({ data: { reachable: [], risk_impact: 0 } }))
+          api.get(`/graph/blast-radius/${id}`)
         ]);
         
-        const assetData = assetRes.data.data;
+        if (assetRes.status === 'rejected') {
+          throw new Error('Failed to load asset details');
+        }
+
+        const assetData = assetRes.value.data.data;
         setAsset(assetData);
-        setFindings(findingsRes.data.findings || []);
-        setBlastRadius(blastRes.data || { reachable: [], risk_impact: 0 });
+        setFindings(findingsRes.status === 'fulfilled' ? findingsRes.value.data.findings || [] : []);
+        setBlastRadius(blastRes.status === 'fulfilled' ? blastRes.value.data || { reachable: [], risk_impact: 0 } : { reachable: [], risk_impact: 0 });
         
         setEditForm({
           owner: assetData.owner || '',

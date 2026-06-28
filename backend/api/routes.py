@@ -195,7 +195,7 @@ async def api_update_finding_status(
     if request.status not in ["open", "in_progress", "resolved", "ignored", "suppressed"]:
         raise HTTPException(status_code=400, detail="Invalid status")
         
-    success = update_finding_status(current_user["org_id"], finding_id, request.status, request.ignored_reason, request.expires_at, current_user["name"])
+    success = update_finding_status(current_user["org_id"], finding_id, request.status, request.ignored_reason, request.expires_at, current_user.get("name", "Unknown"))
     if not success:
         raise HTTPException(status_code=404, detail="Finding not found")
         
@@ -208,7 +208,7 @@ async def api_assign_owner(
     request: AssignOwnerRequest,
     current_user: Dict = Depends(require_role("analyst"))
 ):
-    success = assign_owner(current_user["org_id"], finding_id, request.owner, current_user["name"])
+    success = assign_owner(current_user["org_id"], finding_id, request.owner, current_user.get("name", "Unknown"))
     if not success:
         raise HTTPException(status_code=404, detail="Finding not found")
         
@@ -229,7 +229,7 @@ async def api_add_comment(
     request: AddCommentRequest,
     current_user: Dict = Depends(require_role("analyst"))
 ):
-    comment = add_comment(current_user["org_id"], finding_id, current_user["user_id"], current_user["name"], request.content)
+    comment = add_comment(current_user["org_id"], finding_id, current_user["user_id"], current_user.get("name", "Unknown"), request.content)
     log_audit_event(current_user["org_id"], current_user["user_id"], "add_comment", finding_id)
     return {"success": True, "data": comment}
 
@@ -430,28 +430,17 @@ async def api_create_schedule(
     request: ScheduleRequest,
     current_user: Dict = Depends(require_role("admin"))
 ):
-    import uuid
+    from services.firebase_client import upsert_schedule
     org_id = current_user["org_id"]
     schedule_data = {
-        "id": f"sched_{uuid.uuid4().hex[:8]}",
-        "org_id": org_id,
         "frequency": request.frequency,
         "time": request.time,
         "target": request.target,
-        "status": "active",
-        "created_at": utc_now()
+        "status": "active"
     }
     
-    if get_runtime_mode() == "demo":
-        from services.firebase_client import _mock_db
-        if "schedules" not in _mock_db:
-            _mock_db["schedules"] = []
-        _mock_db["schedules"].append(schedule_data)
-        return {"success": True, "data": schedule_data}
-        
-    db = get_db()
-    if db:
-        db.collection("schedules").document(schedule_data["id"]).set(schedule_data)
+    sid = upsert_schedule(org_id, schedule_data)
+    schedule_data["id"] = sid
     
     return {"success": True, "data": schedule_data}
 

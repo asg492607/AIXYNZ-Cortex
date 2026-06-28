@@ -38,7 +38,7 @@ async def deep_health():
         else:
             db = get_db()
             if db:
-                db.collection("organizations").limit(1).stream()
+                list(db.collection("organizations").limit(1).stream())
                 results["database"] = {"status": "ok", "mode": "firestore"}
             else:
                 results["database"] = {"status": "error", "error": "Firestore client unavailable"}

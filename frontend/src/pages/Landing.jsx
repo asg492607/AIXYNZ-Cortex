@@ -252,8 +252,8 @@ function Hero() {
             { val: 3, suffix: '', label: 'Compliance Frameworks' },
             { val: 6, suffix: '+', label: 'Integrations' },
             { val: 100, suffix: '%', label: 'Tests Passing' },
-          ].map((s, i) => (
-            <div key={i} style={{
+          ].map((s) => (
+            <div key={s.label} style={{
               background: 'var(--bg-card)', border: '1px solid var(--border)',
               borderRadius: 16, padding: '20px 12px', textAlign: 'center',
               boxShadow: 'var(--shadow-card)', transition: 'all 0.3s',
@@ -317,7 +317,7 @@ function Problem() {
         </FadeUp>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 20 }}>
           {PROBLEMS.map((p, i) => (
-            <FadeUp key={i} delay={i * 80}>
+            <FadeUp key={p.title} delay={i * 80}>
               <div style={{
                 padding: '28px 24px', borderRadius: 16, border: '1px solid rgba(239,68,68,0.12)',
                 background: 'rgba(239,68,68,0.03)', transition: 'all 0.3s', boxShadow: 'var(--shadow-card)',
@@ -362,7 +362,7 @@ function Features() {
         </FadeUp>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 18 }}>
           {FEATURES.map((f, i) => (
-            <FadeUp key={i} delay={i * 45}>
+            <FadeUp key={f.title} delay={i * 45}>
               <div style={{
                 padding: '28px 24px', borderRadius: 16, border: '1px solid var(--border)',
                 background: 'var(--bg-card)', transition: 'all 0.3s', cursor: 'default',
@@ -403,7 +403,7 @@ function HowItWorks() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, position: 'relative' }}>
         <div style={{ position: 'absolute', left: 27, top: 56, bottom: 56, width: 2, background: 'linear-gradient(to bottom, #6366f1, #a78bfa)', opacity: 0.25 }} />
         {STEPS.map((s, i) => (
-          <FadeUp key={i} delay={i * 70}>
+          <FadeUp key={s.n} delay={i * 70}>
             <div style={{ display: 'flex', gap: 18, alignItems: 'flex-start' }}>
               <div style={{ width: 56, height: 56, borderRadius: '50%', flexShrink: 0, background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, zIndex: 1, boxShadow: '0 4px 20px rgba(99,102,241,0.3)' }}>{s.icon}</div>
               <div style={{ flex: 1, padding: '18px 22px', borderRadius: 14, border: '1px solid var(--border)', background: 'var(--bg-card)', boxShadow: 'var(--shadow-card)', transition: 'all 0.3s' }}
@@ -494,10 +494,10 @@ function APISection() {
         <div style={{ borderRadius: 16, border: '1px solid var(--border)', overflow: 'hidden', boxShadow: 'var(--shadow-card)' }}>
           <div style={{ padding: '12px 20px', background: 'var(--code-bg)', borderBottom: '1px solid var(--code-border)', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'monospace', fontSize: 12, color: 'var(--text-muted)' }}>
             <div style={{ display: 'flex', gap: 5 }}>{['#ef4444','#f59e0b','#22c55e'].map(c => <div key={c} style={{ width: 11, height: 11, borderRadius: '50%', background: c, opacity: 0.7 }}/>)}</div>
-            <span style={{ marginLeft: 8 }}>REST API · https://aixynz-cortex.onrender.com</span>
+            <span style={{ marginLeft: 8 }}>REST API · aixynz-cortex · v1</span>
           </div>
           {APIS.map((a, i) => (
-            <div key={i} style={{
+            <div key={a.p} style={{
               display: 'grid', gridTemplateColumns: '68px 1fr', alignItems: 'center', gap: 16,
               padding: '13px 20px', borderBottom: i < APIS.length - 1 ? '1px solid var(--border)' : 'none',
               fontFamily: 'monospace', fontSize: 13, background: 'var(--bg-card)', transition: 'background 0.2s',
@@ -544,7 +544,7 @@ function Roadmap() {
           {MILESTONES.map((m, i) => {
             const s = S[m.status];
             return (
-              <FadeUp key={i} delay={i * 70}>
+              <FadeUp key={m.v} delay={i * 70}>
                 <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', padding: '18px 22px', borderRadius: 14, border: `1px solid ${s.border}`, background: s.bg, boxShadow: 'var(--shadow-card)', transition: 'all 0.3s' }}
                   onMouseEnter={e => e.currentTarget.style.transform='translateX(5px)'}
                   onMouseLeave={e => e.currentTarget.style.transform='translateX(0)'}>
@@ -583,7 +583,7 @@ function Team() {
       </FadeUp>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(400px,1fr))', gap: 22 }}>
         {TEAM.map((t, i) => (
-          <FadeUp key={i} delay={i * 120}>
+          <FadeUp key={t.name} delay={i * 120}>
             <div style={{ padding: '32px', borderRadius: 20, border: '1px solid var(--border)', background: 'var(--bg-card)', boxShadow: 'var(--shadow-card)', transition: 'all 0.3s' }}
               onMouseEnter={e => { e.currentTarget.style.borderColor='rgba(99,102,241,0.35)'; e.currentTarget.style.transform='translateY(-5px)'; e.currentTarget.style.boxShadow='0 16px 48px rgba(99,102,241,0.12)'; }}
               onMouseLeave={e => { e.currentTarget.style.borderColor='var(--border)'; e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow='var(--shadow-card)'; }}>

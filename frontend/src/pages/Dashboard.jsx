@@ -220,10 +220,10 @@ export default function Dashboard({ darkMode }) {
                 </div>
               ) : (
                 <div className={`divide-y ${divid}`}>
-                  {topFindings.map((f) => {
+                  {topFindings.map((f, idx) => {
                     const assetLabel = f.asset?.asset_name || f.asset?.external_asset_id || 'unknown asset';
                     return (
-                      <div key={f.id || f.title} className={`p-4 flex justify-between items-center transition-colors ${rowH}`}>
+                      <div key={f.id || `${f.title}-${idx}`} className={`p-4 flex justify-between items-center transition-colors ${rowH}`}>
                         <div className="flex items-center gap-3 min-w-0">
                           <AlertTriangle className={`shrink-0 w-4 h-4 ${sevColor(f.severity)}`} />
                           <div className="min-w-0">

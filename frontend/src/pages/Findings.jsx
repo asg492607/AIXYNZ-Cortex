@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
 import {
   Loader2,
   CheckCircle,
@@ -477,7 +476,7 @@ export default function Findings() {
                     <h4 className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-2">Remediation Steps</h4>
                     <ul className="list-disc list-inside text-gray-300 text-sm bg-gray-900 p-4 rounded space-y-1">
                       {Array.isArray(analysis.remediation_steps) ? (
-                        analysis.remediation_steps.map((step, idx) => <li key={idx}>{step}</li>)
+                        analysis.remediation_steps.map((step, idx) => <li key={`rem-step-${idx}`}>{step}</li>)
                       ) : (
                         <li>{String(analysis.remediation_steps ?? '')}</li>
                       )}

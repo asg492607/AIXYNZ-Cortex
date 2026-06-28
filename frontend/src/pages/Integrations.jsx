@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
 import {
   Github,
   Cloud,
@@ -178,7 +177,7 @@ export default function Integrations() {
       <div className="space-y-4">
         {INTEGRATIONS.map(({ key, name, Icon, desc, liveHint }) => {
           const dbInt = integrationsData.find(i => i.provider === key);
-          const isConnected = isLive ? (dbInt?.status === 'connected') : true; // Demo always connected
+          const isConnected = dbInt?.status === 'connected';
           const statusLive = isLive;
           const lastSync = dbInt?.updated_at ? new Date(dbInt.updated_at).toLocaleDateString() : 'Never';
 

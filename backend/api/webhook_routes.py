@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import Dict, Any
 from fastapi import APIRouter, Request, HTTPException, Depends
 
@@ -16,11 +17,14 @@ logger = logging.getLogger(__name__)
 async def verify_webhook_token(token: str):
     # In a real system, we'd look up the org_id associated with this token.
     # For MVP-3 Sprint 1, we use a static token or assume demo-org if not provided.
-    if not token or token != "cortex-webhook-secret":
-        # Allow pass-through for demo mode testing, but warn
-        if get_runtime_mode() != "demo":
-            raise HTTPException(status_code=401, detail="Invalid webhook token")
-    return "demo-org" # Default to demo-org for now
+    expected_secret = os.environ.get("WEBHOOK_SECRET", "")
+    mode = get_runtime_mode()
+    if mode == "demo":
+        # Demo mode: allow any token (or no token) through for testing
+        return "demo-org"
+    if not token or not expected_secret or token != expected_secret:
+        raise HTTPException(status_code=401, detail="Invalid webhook token")
+    return "demo-org"  # Real multi-org routing to be implemented in a future sprint
 
 
 def _process_new_finding(finding: Dict, org_id: str):
@@ -44,7 +48,7 @@ def _process_new_finding(finding: Dict, org_id: str):
 
 
 @router.post("/webhooks/github")
-async def github_webhook(request: Request, token: str = "cortex-webhook-secret"):
+async def github_webhook(request: Request, token: str = ""):
     org_id = await verify_webhook_token(token)
     payload = await request.json()
     
@@ -58,7 +62,7 @@ async def github_webhook(request: Request, token: str = "cortex-webhook-secret")
 
 
 @router.post("/webhooks/aws")
-async def aws_webhook(request: Request, token: str = "cortex-webhook-secret"):
+async def aws_webhook(request: Request, token: str = ""):
     org_id = await verify_webhook_token(token)
     payload = await request.json()
     
@@ -72,7 +76,7 @@ async def aws_webhook(request: Request, token: str = "cortex-webhook-secret"):
 
 
 @router.post("/webhooks/jira")
-async def jira_webhook(request: Request, token: str = "cortex-webhook-secret"):
+async def jira_webhook(request: Request, token: str = ""):
     org_id = await verify_webhook_token(token)
     payload = await request.json()
     
@@ -107,7 +111,7 @@ async def jira_webhook(request: Request, token: str = "cortex-webhook-secret"):
 # ── Simulation Endpoint ──────────────────────────────────────────────────────
 
 @router.post("/webhooks/simulate")
-async def simulate_webhook(provider: str, event_type: str, token: str = "cortex-webhook-secret"):
+async def simulate_webhook(provider: str, event_type: str, token: str = ""):
     """
     Test endpoint to inject a mock webhook payload for the given provider.
     Used for local testing in demo mode.

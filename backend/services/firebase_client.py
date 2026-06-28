@@ -276,7 +276,11 @@ def upsert_api_key(org_id: str, key_data: Dict) -> str:
     key_data["created_at"] = utc_now()
         
     if get_runtime_mode() == "demo":
-        _mock_db.setdefault("api_keys", []).append(key_data)
+        for i, k in enumerate(_mock_db.setdefault("api_keys", [])):
+            if k.get("id") == kid and k.get("org_id") == org_id:
+                _mock_db["api_keys"][i] = key_data
+                return kid
+        _mock_db["api_keys"].append(key_data)
         return kid
         
     db = get_db()
@@ -352,7 +356,14 @@ def save_remediation(remediation: dict, org_id: str = "demo-org"):
         "updated_at": utc_now(),
     }
 
+    ticket_id = payload["ticket_id"] or f"rem_{uuid.uuid4().hex[:8]}"
+    payload["ticket_id"] = ticket_id
+
     if get_runtime_mode() == "demo":
+        for i, r in enumerate(_mock_db["remediations"]):
+            if r.get("ticket_id") == ticket_id and r.get("org_id") == org_id:
+                _mock_db["remediations"][i] = payload
+                return
         _mock_db["remediations"].append(payload)
         return
 
@@ -402,3 +413,26 @@ def append_chat_message(org_id: str, thread_id: str, role: str, content: str):
     else:
         doc_ref.update({"messages": firestore.ArrayUnion([msg])})
 
+def upsert_schedule(org_id: str, schedule_data: Dict) -> str:
+    sid = schedule_data.get("id")
+    if not sid:
+        sid = f"sched_{uuid.uuid4().hex[:8]}"
+        schedule_data["id"] = sid
+        
+    schedule_data["org_id"] = org_id
+    schedule_data["updated_at"] = utc_now()
+    if "created_at" not in schedule_data:
+        schedule_data["created_at"] = schedule_data["updated_at"]
+        
+    if get_runtime_mode() == "demo":
+        for i, s in enumerate(_mock_db.setdefault("schedules", [])):
+            if s.get("id") == sid and s.get("org_id") == org_id:
+                _mock_db["schedules"][i] = schedule_data
+                return sid
+        _mock_db["schedules"].append(schedule_data)
+        return sid
+        
+    db = get_db()
+    if db:
+        db.collection("schedules").document(sid).set(schedule_data)
+    return sid

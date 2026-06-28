@@ -57,18 +57,7 @@ def get_current_user(
 
     token = credentials.credentials
 
-    if mode == "demo":
-        # In demo mode, if a token is provided (e.g. from local testing login),
-        # we can decode it if we want, but typically demo mode bypasses strict verification.
-        # Let's try to verify if firebase is initialized, else use mock.
-        if not firebase_admin._apps:
-             return {
-                "user_id": "demo-user-1",
-                "email": "demo@aixynz.com",
-                "name": "Demo Admin",
-                "org_id": "demo-org",
-                "role": "admin"
-            }
+
 
     try:
         decoded_token = auth.verify_id_token(token)
