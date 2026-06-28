@@ -11,6 +11,15 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
 import json
 
+# Security Mitigation: Rate Limiting
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+
+# Initialize Rate Limiter (100 requests per minute per IP by default)
+limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
+
 from api.routes import router as api_router
 from api.organization_routes import router as org_router
 from api.user_routes import router as user_router
@@ -64,6 +73,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add Rate Limiting Exception Handler & Middleware
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 # ── Request Logging & Security Headers Middleware ────────────────────────────────────────────────
 @app.middleware("http")

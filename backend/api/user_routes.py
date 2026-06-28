@@ -7,8 +7,12 @@ from services.user_service import get_users_for_org, update_user_role
 
 router = APIRouter()
 
+from pydantic import BaseModel, Field
+
 class UpdateRoleRequest(BaseModel):
-    role: str
+    # OWASP Mitigation: Mass Assignment & BOLA Protection
+    # Strictly define accepted fields and values
+    role: str = Field(..., pattern="^(admin|analyst|viewer)$")
 
 @router.get("/me")
 async def get_me(current_user: Dict = Depends(get_current_user)):
@@ -31,8 +35,6 @@ async def patch_user_role(
     request: UpdateRoleRequest, 
     current_user: Dict = Depends(require_role("admin"))
 ):
-    if request.role not in ["admin", "analyst", "viewer"]:
-        raise HTTPException(status_code=400, detail="Invalid role")
         
     success = update_user_role(user_id, request.role, current_user["org_id"])
     if not success:
