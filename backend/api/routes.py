@@ -475,3 +475,28 @@ async def api_update_user_role(
         raise HTTPException(status_code=404, detail="User not found in this organization")
         
     return {"success": True, "message": "Role updated successfully"}
+
+@router.get("/org/billing")
+async def api_get_billing(current_user: Dict = Depends(require_role("admin"))):
+    """Returns mock billing and subscription data for the organization."""
+    import datetime
+    
+    # Mock data for MVP
+    current_plan = "Pro"
+    assets_scanned = 342
+    assets_limit = 500
+    
+    next_billing_date = (datetime.datetime.utcnow() + datetime.timedelta(days=14)).isoformat() + "Z"
+    
+    return {
+        "success": True,
+        "data": {
+            "plan": current_plan,
+            "status": "active",
+            "next_billing_date": next_billing_date,
+            "usage": {
+                "assets_scanned": assets_scanned,
+                "assets_limit": assets_limit
+            }
+        }
+    }
