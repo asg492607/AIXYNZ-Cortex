@@ -24,6 +24,13 @@ const SEVERITY_BADGE = {
   Low: 'bg-gray-700 text-gray-300 border border-gray-600',
 };
 
+const getRiskColor = (score) => {
+  if (score >= 90) return 'text-red-400 bg-red-900/20 border-red-700/50';
+  if (score >= 70) return 'text-orange-400 bg-orange-900/20 border-orange-700/50';
+  if (score >= 40) return 'text-yellow-400 bg-yellow-900/20 border-yellow-700/50';
+  return 'text-green-400 bg-green-900/20 border-green-700/50';
+};
+
 export default function Findings() {
   const [data, setData] = useState({ mode: 'demo', findings: [], findings_count: 0 });
   const [loading, setLoading] = useState(true);
@@ -292,6 +299,11 @@ export default function Findings() {
                           <span className={`text-xs font-bold px-2 py-0.5 rounded ${SEVERITY_BADGE[f.severity] || SEVERITY_BADGE.Low}`}>
                             {f.severity}
                           </span>
+                          {f.risk_score !== undefined && (
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded border ${getRiskColor(f.risk_score)}`}>
+                              Score: {f.risk_score}
+                            </span>
+                          )}
                           {f.jira_issue_key && (
                             <span className="text-xs font-mono bg-blue-900/30 text-blue-300 border border-blue-700/40 px-2 py-0.5 rounded flex items-center gap-1">
                               <LinkIcon className="w-3 h-3" />
@@ -320,9 +332,15 @@ export default function Findings() {
               ← Back to list
             </button>
 
-            {/* Finding meta */}
             <div>
-              <h2 className="text-2xl font-bold text-white mb-3">{selected.title}</h2>
+              <div className="flex items-center gap-3 mb-3">
+                <h2 className="text-2xl font-bold text-white">{selected.title}</h2>
+                {selected.risk_score !== undefined && (
+                   <span className={`text-sm font-bold px-2 py-1 rounded border ${getRiskColor(selected.risk_score)}`}>
+                     Risk Score: {selected.risk_score} / 100
+                   </span>
+                )}
+              </div>
               <div className="flex flex-wrap gap-3 text-sm">
                 {[
                   ['Asset', selected.asset?.asset_name || selected.asset?.external_asset_id || 'unknown'],
@@ -336,6 +354,27 @@ export default function Findings() {
                   </div>
                 ))}
               </div>
+
+              {/* Risk Breakdown if available */}
+              {selected.risk_factors && (
+                <div className="mt-4 bg-gray-800/40 p-4 rounded-xl border border-gray-700/50">
+                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Risk Engine Breakdown</h4>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <div className="text-[10px] text-gray-500 uppercase">Base Severity</div>
+                      <div className="text-sm text-gray-300 font-mono mt-1">{selected.risk_factors.base_severity}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-gray-500 uppercase">Asset Context</div>
+                      <div className="text-sm text-gray-300 font-mono mt-1">{selected.risk_factors.asset_criticality}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-gray-500 uppercase">Exposure</div>
+                      <div className="text-sm text-gray-300 font-mono mt-1">{selected.risk_factors.exposure}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* MVP-2 Extended Fields Stubs */}
               <div className="grid grid-cols-2 gap-4 mt-4 bg-gray-800/50 p-4 rounded-xl border border-gray-800">

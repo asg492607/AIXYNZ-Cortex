@@ -5,6 +5,7 @@ import logging
 from services.firebase_client import get_runtime_mode, upsert_finding, get_findings, get_db, _mock_db, utc_now
 from services.notification_service import notify_new_finding
 from services.asset_service import upsert_asset, calculate_asset_risk_scores
+from services.risk_engine import calculate_risk_score
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,9 @@ def run_full_scan(org_id: str = "demo-org") -> dict:
             if asset_data:
                 asset_id = upsert_asset(org_id, asset_data)
                 finding["asset_id"] = asset_id
+
+            # Apply Advanced Risk Engine scoring
+            finding = calculate_risk_score(finding)
 
             fid = upsert_finding(finding)
             saved_ids.append(fid)
