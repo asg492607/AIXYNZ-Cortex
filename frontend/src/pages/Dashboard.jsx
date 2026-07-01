@@ -99,6 +99,13 @@ export default function Dashboard({ darkMode }) {
       iconBg: darkMode ? 'bg-red-900/30' : 'bg-red-50',
     },
     {
+      label: 'SLA Breaches',
+      value: data?.sla_breaches_count ?? 0,
+      icon: Clock,
+      color: 'text-orange-500',
+      iconBg: darkMode ? 'bg-orange-900/30' : 'bg-orange-50',
+    },
+    {
       label: 'High Risks',
       value: data?.high_risks_count ?? 0,
       icon: AlertTriangle,

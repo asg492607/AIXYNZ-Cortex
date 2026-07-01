@@ -1,21 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import {
-  Loader2,
-  CheckCircle,
-  ChevronRight,
-  Play,
-  Activity,
-  RefreshCcw,
-  ExternalLink,
-  LinkIcon,
-  MessageSquare,
-  User,
-  Clock,
-  Send,
-  Share2
-} from 'lucide-react';
-
+import React, { useEffect, useState, useMemo } from 'react';
+import { ShieldAlert, Database, Code, CheckCircle, Clock, Link as LinkIcon, RefreshCcw, Activity, Loader2, ArrowRight, ExternalLink, MessageSquare, Send, Share2, ChevronRight, Play, User, Search, Filter } from 'lucide-react';
 import api from '../lib/api';
+import RoleGuard from '../components/RoleGuard';
 
 const SEVERITY_BADGE = {
   Critical: 'bg-red-900/60 text-red-200 border border-red-700/50',
@@ -52,6 +38,11 @@ export default function Findings() {
 
   const [sharing, setSharing] = useState(false);
   const [shareResult, setShareResult] = useState(null);
+
+  // Filters state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [severityFilter, setSeverityFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('open');
 
   // ── Data loaders ──────────────────────────────────────────────────────────
 
@@ -234,6 +225,15 @@ export default function Findings() {
   const ticketUrl = ticket?.ticket_url;
   const isAlreadyExists = ticket?.status === 'already_exists';
 
+  const getSlaStatus = (deadline) => {
+    if (!deadline) return null;
+    const diff = new Date(deadline) - new Date();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    if (days < 0) return { label: `SLA Breached (${Math.abs(days)}d overdue)`, color: 'bg-red-500/20 text-red-400 border-red-500/50' };
+    if (days <= 2) return { label: `SLA Due soon (${days}d left)`, color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50' };
+    return { label: `SLA: ${days}d left`, color: 'bg-green-500/20 text-green-400 border-green-500/50' };
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   if (loading) {
@@ -243,6 +243,17 @@ export default function Findings() {
       </div>
     );
   }
+
+  const filteredFindings = (data.findings || []).filter(f => {
+    const matchesSearch = !searchQuery || 
+      (f.title || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+      (f.asset?.asset_name || '').toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesSeverity = severityFilter === 'All' || f.severity === severityFilter;
+    const matchesStatus = statusFilter === 'All' || f.status === statusFilter;
+
+    return matchesSearch && matchesSeverity && matchesStatus;
+  });
 
   return (
     <div className="flex h-full flex-col">
@@ -294,13 +305,51 @@ export default function Findings() {
       <div className="flex flex-1 overflow-hidden">
         {/* ── Findings list ─────────────────────────────────────────────── */}
         <div className={`${selected ? 'hidden md:flex md:w-1/2' : 'w-full'} flex-col p-6 overflow-y-auto border-r border-gray-800`}>
+          
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row gap-3 mb-6">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 absolute left-3 top-3 text-gray-500" />
+              <input
+                type="text"
+                placeholder="Search findings..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-gray-900 border border-gray-700 text-white text-sm rounded-lg pl-9 pr-3 py-2.5 focus:border-indigo-500 focus:outline-none"
+              />
+            </div>
+            <div className="flex gap-3">
+              <select
+                value={severityFilter}
+                onChange={(e) => setSeverityFilter(e.target.value)}
+                className="bg-gray-900 border border-gray-700 text-white text-sm rounded-lg px-3 py-2.5 focus:border-indigo-500 focus:outline-none"
+              >
+                <option value="All">All Severities</option>
+                <option value="Critical">Critical</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="bg-gray-900 border border-gray-700 text-white text-sm rounded-lg px-3 py-2.5 focus:border-indigo-500 focus:outline-none"
+              >
+                <option value="All">All Status</option>
+                <option value="open">Open</option>
+                <option value="resolved">Resolved</option>
+                <option value="ignored">Ignored</option>
+              </select>
+            </div>
+          </div>
+
           <div className="space-y-3">
-            {data.findings.length === 0 ? (
+            {filteredFindings.length === 0 ? (
               <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 text-gray-400">
-                No findings yet. Run a rescan to populate Cortex.
+                No findings match your filters.
               </div>
             ) : (
-              data.findings.map((f) => {
+              filteredFindings.map((f) => {
                 const assetLabel =
                   f.asset?.asset_name ||
                   f.asset?.external_asset_id ||
@@ -325,6 +374,11 @@ export default function Findings() {
                           {f.risk_score !== undefined && (
                             <span className={`text-xs font-bold px-2 py-0.5 rounded border ${getRiskColor(f.risk_score)}`}>
                               Score: {f.risk_score}
+                            </span>
+                          )}
+                          {f.sla_deadline && f.status !== 'resolved' && (
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded border ${getSlaStatus(f.sla_deadline)?.color}`}>
+                              {getSlaStatus(f.sla_deadline)?.label}
                             </span>
                           )}
                           {f.jira_issue_key && (
@@ -370,6 +424,7 @@ export default function Findings() {
                   ['Source', selected.source],
                   ['Severity', selected.severity],
                   ['Category', selected.category],
+                  ...(selected.sla_deadline && selected.status !== 'resolved' ? [['SLA', getSlaStatus(selected.sla_deadline)?.label]] : []),
                 ].map(([label, value]) => (
                   <div key={label} className="bg-gray-800 rounded px-3 py-1.5 border border-gray-700">
                     <span className="text-gray-500 text-xs uppercase tracking-wider">{label}: </span>
@@ -496,92 +551,94 @@ export default function Findings() {
             </div>
 
             {/* Remediation CTA */}
-            <div>
-              {ticketResolved ? (
-                <div className="space-y-2">
-                  <div className="bg-green-900/20 border border-green-600/40 text-green-300 px-4 py-3 rounded-lg flex items-center gap-2 text-sm">
-                    <CheckCircle className="w-5 h-5 shrink-0" />
-                    {isAlreadyExists
-                      ? `Ticket already exists: ${ticketId}`
-                      : `Jira ticket created: ${ticketId}`}
+            <RoleGuard requiredRole="analyst">
+              <div>
+                {ticketResolved ? (
+                  <div className="space-y-2">
+                    <div className="bg-green-900/20 border border-green-600/40 text-green-300 px-4 py-3 rounded-lg flex items-center gap-2 text-sm">
+                      <CheckCircle className="w-5 h-5 shrink-0" />
+                      {isAlreadyExists
+                        ? `Ticket already exists: ${ticketId}`
+                        : `Jira ticket created: ${ticketId}`}
+                    </div>
+                    {ticketUrl && (
+                      <a
+                        href={ticketUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-2 text-blue-400 hover:text-blue-300 text-sm underline underline-offset-2 transition"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        Open in Jira
+                      </a>
+                    )}
                   </div>
-                  {ticketUrl && (
-                    <a
-                      href={ticketUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-2 text-blue-400 hover:text-blue-300 text-sm underline underline-offset-2 transition"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                      Open in Jira
-                    </a>
-                  )}
+                ) : (
+                  <button
+                    onClick={handleRemediate}
+                    disabled={analyzing || remediating || !analysis || !selected?.id || !!alreadyLinked}
+                    className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg flex items-center justify-center gap-2 transition font-semibold shadow-lg shadow-blue-500/20 w-full"
+                  >
+                    {remediating ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Creating Jira ticket…
+                      </>
+                    ) : alreadyLinked ? (
+                      <>
+                        <LinkIcon className="w-5 h-5" />
+                        Already linked to Jira
+                      </>
+                    ) : (
+                      'Auto-Remediate (Create Jira)'
+                    )}
+                  </button>
+                )}
+                {exportResult && (
+                  <div className={`mt-2 px-4 py-2 rounded-lg text-sm border ${exportResult.ok ? 'bg-green-500/10 border-green-500/30 text-green-300' : 'bg-red-500/10 border-red-500/30 text-red-300'}`}>
+                    {exportResult.msg}
+                  </div>
+                )}
+                <div className="flex gap-2 mt-2">
+                  <button
+                    onClick={() => handleExportToSIEM('splunk')}
+                    disabled={exporting || !selected?.id}
+                    className="flex-1 bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-300 py-2 rounded-lg flex items-center justify-center gap-2 transition text-sm font-semibold"
+                  >
+                    <Send className="w-4 h-4" /> Splunk
+                  </button>
+                  <button
+                    onClick={() => handleExportToSIEM('datadog')}
+                    disabled={exporting || !selected?.id}
+                    className="flex-1 bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-300 py-2 rounded-lg flex items-center justify-center gap-2 transition text-sm font-semibold"
+                  >
+                    <Send className="w-4 h-4" /> Datadog
+                  </button>
                 </div>
-              ) : (
-                <button
-                  onClick={handleRemediate}
-                  disabled={analyzing || remediating || !analysis || !selected?.id || !!alreadyLinked}
-                  className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg flex items-center justify-center gap-2 transition font-semibold shadow-lg shadow-blue-500/20 w-full"
-                >
-                  {remediating ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Creating Jira ticket…
-                    </>
-                  ) : alreadyLinked ? (
-                    <>
-                      <LinkIcon className="w-5 h-5" />
-                      Already linked to Jira
-                    </>
-                  ) : (
-                    'Auto-Remediate (Create Jira)'
-                  )}
-                </button>
-              )}
-              {exportResult && (
-                <div className={`mt-2 px-4 py-2 rounded-lg text-sm border ${exportResult.ok ? 'bg-green-500/10 border-green-500/30 text-green-300' : 'bg-red-500/10 border-red-500/30 text-red-300'}`}>
-                  {exportResult.msg}
-                </div>
-              )}
-              <div className="flex gap-2 mt-2">
-                <button
-                  onClick={() => handleExportToSIEM('splunk')}
-                  disabled={exporting || !selected?.id}
-                  className="flex-1 bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-300 py-2 rounded-lg flex items-center justify-center gap-2 transition text-sm font-semibold"
-                >
-                  <Send className="w-4 h-4" /> Splunk
-                </button>
-                <button
-                  onClick={() => handleExportToSIEM('datadog')}
-                  disabled={exporting || !selected?.id}
-                  className="flex-1 bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-300 py-2 rounded-lg flex items-center justify-center gap-2 transition text-sm font-semibold"
-                >
-                  <Send className="w-4 h-4" /> Datadog
-                </button>
-              </div>
 
-              {shareResult && (
-                <div className={`mt-2 px-4 py-2 rounded-lg text-sm border ${shareResult.ok ? 'bg-green-500/10 border-green-500/30 text-green-300' : 'bg-red-500/10 border-red-500/30 text-red-300'}`}>
-                  {shareResult.msg}
+                {shareResult && (
+                  <div className={`mt-2 px-4 py-2 rounded-lg text-sm border ${shareResult.ok ? 'bg-green-500/10 border-green-500/30 text-green-300' : 'bg-red-500/10 border-red-500/30 text-red-300'}`}>
+                    {shareResult.msg}
+                  </div>
+                )}
+                <div className="flex gap-2 mt-2">
+                  <button
+                    onClick={() => handleShare('slack')}
+                    disabled={sharing || !selected?.id}
+                    className="flex-1 bg-gray-800 border border-gray-700 hover:bg-[#4A154B]/80 hover:border-[#4A154B] hover:text-white text-gray-300 py-2 rounded-lg flex items-center justify-center gap-2 transition text-sm font-semibold"
+                  >
+                    <Share2 className="w-4 h-4" /> Slack
+                  </button>
+                  <button
+                    onClick={() => handleShare('teams')}
+                    disabled={sharing || !selected?.id}
+                    className="flex-1 bg-gray-800 border border-gray-700 hover:bg-[#5B5FC7]/80 hover:border-[#5B5FC7] hover:text-white text-gray-300 py-2 rounded-lg flex items-center justify-center gap-2 transition text-sm font-semibold"
+                  >
+                    <Share2 className="w-4 h-4" /> Teams
+                  </button>
                 </div>
-              )}
-              <div className="flex gap-2 mt-2">
-                <button
-                  onClick={() => handleShare('slack')}
-                  disabled={sharing || !selected?.id}
-                  className="flex-1 bg-gray-800 border border-gray-700 hover:bg-[#4A154B]/80 hover:border-[#4A154B] hover:text-white text-gray-300 py-2 rounded-lg flex items-center justify-center gap-2 transition text-sm font-semibold"
-                >
-                  <Share2 className="w-4 h-4" /> Slack
-                </button>
-                <button
-                  onClick={() => handleShare('teams')}
-                  disabled={sharing || !selected?.id}
-                  className="flex-1 bg-gray-800 border border-gray-700 hover:bg-[#5B5FC7]/80 hover:border-[#5B5FC7] hover:text-white text-gray-300 py-2 rounded-lg flex items-center justify-center gap-2 transition text-sm font-semibold"
-                >
-                  <Share2 className="w-4 h-4" /> Teams
-                </button>
               </div>
-            </div>
+            </RoleGuard>
             {/* Comments Section */}
             <div className="mt-8 border-t border-gray-800 pt-6">
               <h3 className="text-lg font-bold text-white flex items-center gap-2 mb-4">

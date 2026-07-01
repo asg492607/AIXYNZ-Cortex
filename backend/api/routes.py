@@ -74,12 +74,21 @@ async def get_dashboard_summary(current_user: Dict = Depends(get_current_user)):
     
     top_assets = [{"name": k, "count": v} for k, v in sorted(assets_count.items(), key=lambda item: item[1], reverse=True)[:5]]
 
+    now = datetime.now(timezone.utc)
+    sla_breaches = 0
+    for f in findings:
+        if f.get("status") != "resolved" and f.get("sla_deadline"):
+            deadline = datetime.fromisoformat(f["sla_deadline"].replace("Z", "+00:00"))
+            if now > deadline:
+                sla_breaches += 1
+
     return {
         "mode": get_runtime_mode(),
         "org_id": org_id,
         "findings_count": len(findings),
         "critical_risks_count": len([f for f in findings if f.get("severity") == "Critical" and f.get("status") != "resolved"]),
         "high_risks_count": len([f for f in findings if f.get("severity") == "High" and f.get("status") != "resolved"]),
+        "sla_breaches_count": sla_breaches,
         "posture_score": max(0, 100 - (len([f for f in findings if f.get("severity") == "Critical" and f.get("status") != "resolved"]) * 10) - (len([f for f in findings if f.get("severity") == "High" and f.get("status") != "resolved"]) * 5)),
         "top_findings": sort_findings([f for f in findings if f.get("status") != "resolved"])[:5],
         "mttr_days": mttr_days,

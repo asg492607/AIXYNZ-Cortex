@@ -91,6 +91,13 @@ def format_finding(f: dict) -> dict:
         "provider": f.get("source", "unknown").lower(),
     }
 
+    severity = f.get("severity", "Medium")
+    
+    # SLA Calculation based on severity
+    sla_days = {"Critical": 2, "High": 7, "Medium": 30, "Low": 90}.get(severity, 30)
+    detected_time = datetime.datetime.fromisoformat(f.get("detected_at", now).replace("Z", "+00:00"))
+    sla_deadline = (detected_time + datetime.timedelta(days=sla_days)).isoformat().replace("+00:00", "Z")
+
     finding = {
         "id": f.get("id"),
         "org_id": org_id,
@@ -100,11 +107,12 @@ def format_finding(f: dict) -> dict:
         "finding_type": f.get("finding_type", "unknown"),
         "title": f.get("title", "Unknown Risk"),
         "description": f.get("description", ""),
-        "severity": f.get("severity", "Medium"),
+        "severity": severity,
         "risk_score": f.get("risk_score", 50),
         "status": f.get("status", "open"),
         "owner": f.get("owner", "unassigned"),
         "due_date": f.get("due_date"),
+        "sla_deadline": f.get("sla_deadline", sla_deadline),
         "resolved_at": f.get("resolved_at"),
         "ignored_reason": f.get("ignored_reason"),
         "expires_at": f.get("expires_at"),

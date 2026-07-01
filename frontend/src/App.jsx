@@ -12,6 +12,7 @@ import Integrations from './pages/Integrations';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Profile from './pages/Profile';
+import RoleGuard from './components/RoleGuard';
 import AuditLogs from './pages/AuditLogs';
 import AssetInventory from './pages/AssetInventory';
 import AssetDetails from './pages/AssetDetails';
@@ -99,12 +100,30 @@ function Sidebar({ darkMode, setDarkMode }) {
         <p className={`px-3 py-1 text-[10px] font-bold uppercase tracking-widest mt-4 mb-2 ${darkMode ? 'text-slate-600' : 'text-slate-400'}`}>
           Settings
         </p>
-        {BOTTOM_ITEMS.map(({ path, label, Icon }) => (
-          <Link key={path} to={path} className={linkClass(path)}>
-            <Icon className="w-4 h-4 shrink-0" />
-            {label}
-          </Link>
-        ))}
+        {BOTTOM_ITEMS.map(({ path, label, Icon }) => {
+          const item = (
+            <Link key={path} to={path} className={linkClass(path)}>
+              <Icon className="w-4 h-4 shrink-0" />
+              {label}
+            </Link>
+          );
+          
+          if (['/team', '/api-keys', '/audit-logs', '/settings/siem', '/settings/billing', '/policies'].includes(path)) {
+            return (
+              <RoleGuard key={path} requiredRole="admin">
+                {item}
+              </RoleGuard>
+            );
+          }
+          if (['/integrations', '/settings/schedules'].includes(path)) {
+            return (
+              <RoleGuard key={path} requiredRole="analyst">
+                {item}
+              </RoleGuard>
+            );
+          }
+          return item;
+        })}
       </nav>
 
       {/* Footer */}

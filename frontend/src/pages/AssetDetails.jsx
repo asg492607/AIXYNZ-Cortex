@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Database, ShieldAlert, Tag, User, ArrowLeft, GitBranch, AlertCircle, Edit2, Save, X } from 'lucide-react';
 import api from '../lib/api';
+import RoleGuard from '../components/RoleGuard';
 
 export default function AssetDetails() {
   const { id } = useParams();
@@ -87,20 +88,22 @@ export default function AssetDetails() {
           <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-white">Asset Intel</h2>
-              {!isEditing ? (
-                <button onClick={() => setIsEditing(true)} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded text-gray-300 transition">
-                  <Edit2 className="w-4 h-4" />
-                </button>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <button onClick={handleSave} className="p-1.5 bg-indigo-600 hover:bg-indigo-500 rounded text-white transition">
-                    <Save className="w-4 h-4" />
+              <RoleGuard requiredRole="analyst">
+                {!isEditing ? (
+                  <button onClick={() => setIsEditing(true)} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded text-gray-300 transition">
+                    <Edit2 className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setIsEditing(false)} className="p-1.5 bg-gray-600 hover:bg-gray-500 rounded text-white transition">
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <button onClick={handleSave} className="p-1.5 bg-indigo-600 hover:bg-indigo-500 rounded text-white transition">
+                      <Save className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => setIsEditing(false)} className="p-1.5 bg-gray-600 hover:bg-gray-500 rounded text-white transition">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </RoleGuard>
             </div>
 
             <div className="space-y-4 text-sm">
